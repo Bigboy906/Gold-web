@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const nodemailer = require("nodemailer");
 require("dotenv").config();
 
 const app = express();
@@ -10,14 +11,58 @@ const TWELVE_KEY = "865285eec7c449129e724b96f92c56d4";
 
 let latestSignal = null;
 
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: "samwelkimani659@gmail.com",
+    pass: process.env.GMAIL_PASS,
+  },
+});
+
+async function sendSignalEmail(signal) {
+  const direction = signal.direction === "BUY" ? "🟢 BUY" : "🔴 SELL";
+  const html = `
+    <div style="font-family: sans-serif; background: #0a0a0f; color: white; padding: 24px; border-radius: 12px; max-width: 500px;">
+      <h2 style="color: #f59e0b;">⚡ GoldSignal Alert</h2>
+      <h3 style="color: white;">${direction} — ${signal.pair}</h3>
+      <p style="color: #9ca3af;">Timeframe: ${signal.timeframe} | Confidence: ${signal.confidence}%</p>
+      <table style="width:100%; border-collapse: collapse; margin: 16px 0;">
+        <tr>
+          <td style="padding: 8px; color: #f59e0b; border: 1px solid #333;">Entry</td>
+          <td style="padding: 8px; color: white; border: 1px solid #333;">${signal.entry}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; color: #22c55e; border: 1px solid #333;">Take Profit</td>
+          <td style="padding: 8px; color: white; border: 1px solid #333;">${signal.takeProfit}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; color: #ef4444; border: 1px solid #333;">Stop Loss</td>
+          <td style="padding: 8px; color: white; border: 1px solid #333;">${signal.stopLoss}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; color: #9ca3af; border: 1px solid #333;">R:R</td>
+          <td style="padding: 8px; color: white; border: 1px solid #333;">${signal.rr}</td>
+        </tr>
+      </table>
+      <p style="color: #9ca3af; font-size: 13px;"><strong style="color: #a78bfa;">15m Bias:</strong> ${signal.trend}</p>
+      <p style="color: #9ca3af; font-size: 13px;"><strong style="color: #a78bfa;">Entry Reasons:</strong> ${signal.reasons}</p>
+      <p style="color: #9ca3af; font-size: 13px;"><strong style="color: #a78bfa;">Analysis:</strong> ${signal.analysis}</p>
+      <p style="color: #6b7280; font-size: 11px; margin-top: 16px;">Sent at ${new Date().toUTCString()}</p>
+    </div>
+  `;
+
+  await transporter.sendMail({
+    from: "samwelkimani659@gmail.com",
+    to: ["samwelkimani659@gmail.com", "morenochristopher851@gmail.com"],
+    subject: `⚡ GoldSignal: ${signal.direction} XAU/USD @ ${signal.entry}`,
+    html,
+  });
+}
+
 async function fetchCandles(interval, outputsize = 100) {
   const fetch = (await import("node-fetch")).default;
   const intervalMap = {
-    "5m": "5min",
-    "15m": "15min",
-    "30m": "30min",
-    "1H": "1h",
-    "4H": "4h",
+    "5m": "5min", "15m": "15min", "30m": "30min", "1H": "1h", "4H": "4h",
   };
   const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=${intervalMap[interval]}&outputsize=${outputsize}&apikey=${TWELVE_KEY}`;
   const res = await fetch(url);
@@ -32,7 +77,6 @@ async function fetchCandles(interval, outputsize = 100) {
   })).reverse();
 }
 
-// RSI
 function calcRSI(candles, period = 14) {
   if (candles.length < period + 1) return 50;
   let gains = 0, losses = 0;
@@ -45,7 +89,6 @@ function calcRSI(candles, period = 14) {
   return 100 - 100 / (1 + rs);
 }
 
-// EMA
 function calcEMA(candles, period) {
   if (candles.length < period) return null;
   const k = 2 / (period + 1);
@@ -56,7 +99,6 @@ function calcEMA(candles, period) {
   return ema;
 }
 
-// ATR
 function calcATR(candles, period = 14) {
   if (candles.length < period) return 1;
   let atr = 0;
@@ -66,7 +108,6 @@ function calcATR(candles, period = 14) {
   return atr / period;
 }
 
-// BOS
 function detectBOS(candles) {
   if (candles.length < 5) return null;
   const len = candles.length;
@@ -77,7 +118,6 @@ function detectBOS(candles) {
   return null;
 }
 
-// CHOCH
 function detectCHOCH(candles) {
   if (candles.length < 6) return null;
   const len = candles.length;
@@ -90,7 +130,6 @@ function detectCHOCH(candles) {
   return null;
 }
 
-// Order Block
 function detectOrderBlock(candles) {
   if (candles.length < 4) return null;
   const len = candles.length;
@@ -107,7 +146,6 @@ function detectOrderBlock(candles) {
   return null;
 }
 
-// Liquidity Sweep
 function detectLiquiditySweep(candles) {
   if (candles.length < 5) return null;
   const len = candles.length;
@@ -119,7 +157,6 @@ function detectLiquiditySweep(candles) {
   return null;
 }
 
-// Engulfing
 function detectEngulfing(candles) {
   if (candles.length < 2) return null;
   const len = candles.length;
@@ -134,7 +171,6 @@ function detectEngulfing(candles) {
   return null;
 }
 
-// Rejection Wick
 function detectRejectionWick(candles) {
   if (candles.length < 1) return null;
   const last = candles[candles.length - 1];
@@ -146,19 +182,16 @@ function detectRejectionWick(candles) {
   return null;
 }
 
-// FVG
 function detectFVG(candles) {
   if (candles.length < 3) return null;
   const len = candles.length;
   const c1 = candles[len - 3];
-  const c2 = candles[len - 2];
   const c3 = candles[len - 1];
-  if (c3.low > c1.high) return { type: "Bullish FVG", direction: "BUY", top: c3.low, bottom: c1.high };
-  if (c3.high < c1.low) return { type: "Bearish FVG", direction: "SELL", top: c1.low, bottom: c3.high };
+  if (c3.low > c1.high) return { type: "Bullish FVG", direction: "BUY" };
+  if (c3.high < c1.low) return { type: "Bearish FVG", direction: "SELL" };
   return null;
 }
 
-// TP calculation
 function calcTP(entry, sl, rr, direction) {
   const risk = Math.abs(entry - sl);
   const rrMap = { "1:1.5": 1.5, "1:2": 2, "1:3": 3, "1:3.5": 3.5 };
@@ -166,10 +199,19 @@ function calcTP(entry, sl, rr, direction) {
   return direction === "BUY" ? entry + risk * multiplier : entry - risk * multiplier;
 }
 
-// SMC Analysis
+function buildAnalysisParagraph(signal, htfBias, matchingSignals, biasDirection, htfRSI, ltfRSI, emaFilter, entry, stopLoss, takeProfit, rr) {
+  const dir = biasDirection === "BUY" ? "bullish" : "bearish";
+  const reasons = matchingSignals.map(s => s.type).join(", ");
+  const emaText = emaFilter ? "EMA50 is above EMA200, confirming the uptrend." : "EMA trend is mixed but other confluences are strong.";
+  const rsiText = `The 15m RSI is at ${htfRSI.toFixed(1)} and 5m RSI is at ${ltfRSI.toFixed(1)}, both supporting ${dir} momentum.`;
+  const entryText = `Price is currently at ${entry.toFixed(2)}. The stop loss is placed at ${stopLoss.toFixed(2)}, just beyond the order block, protecting against invalidation. The take profit target is ${takeProfit.toFixed(2)}, giving a ${rr} risk to reward ratio.`;
+  const reasonText = `On the 5m chart, the following setups were detected: ${reasons}. These align with the ${htfBias} structure on the 15m timeframe.`;
+
+  return `The 15m chart shows a ${htfBias}, indicating a ${dir} market structure. ${rsiText} ${emaText} ${reasonText} ${entryText}`;
+}
+
 app.get("/smc/:rr", async (req, res) => {
   const { rr } = req.params;
-
   try {
     const htfCandles = await fetchCandles("15m", 100);
     const ltfCandles = await fetchCandles("5m", 100);
@@ -178,30 +220,21 @@ app.get("/smc/:rr", async (req, res) => {
       return res.json({ error: "Could not fetch data. Try again." });
     }
 
-    // HTF indicators
     const bos = detectBOS(htfCandles);
     const choch = detectCHOCH(htfCandles);
     const htfBias = bos || choch;
     const htfRSI = calcRSI(htfCandles);
     const ema50 = calcEMA(htfCandles, 50);
     const ema200 = calcEMA(htfCandles, 200);
-    const lastHTF = htfCandles[htfCandles.length - 1];
 
     if (!htfBias) {
       return res.json({ message: "No clear market structure on 15m. Wait for BOS or CHOCH." });
     }
 
     const biasDirection = htfBias.includes("Bullish") ? "BUY" : "SELL";
-
-    // EMA trend filter
-    const emaFilter = ema50 && ema200
-      ? biasDirection === "BUY" ? ema50 > ema200 : ema50 < ema200
-      : true;
-
-    // RSI filter — avoid overbought on BUY, oversold on SELL
+    const emaFilter = ema50 && ema200 ? (biasDirection === "BUY" ? ema50 > ema200 : ema50 < ema200) : true;
     const rsiFilter = biasDirection === "BUY" ? htfRSI < 75 : htfRSI > 25;
 
-    // LTF indicators
     const ltfRSI = calcRSI(ltfCandles);
     const ltfATR = calcATR(ltfCandles);
     const ob = detectOrderBlock(ltfCandles);
@@ -210,20 +243,18 @@ app.get("/smc/:rr", async (req, res) => {
     const wick = detectRejectionWick(ltfCandles);
     const fvg = detectFVG(ltfCandles);
 
-    // Match entry signals with bias
     const allSignals = [ob, sweep, engulfing, wick, fvg].filter(Boolean);
     const matchingSignals = allSignals.filter(s => s.direction === biasDirection);
 
     if (matchingSignals.length === 0) {
       return res.json({
-        message: `15m bias is ${biasDirection} (${htfBias}). RSI: ${htfRSI.toFixed(1)}. EMA trend: ${emaFilter ? "Confirmed" : "Against bias"}. Waiting for 5m entry...`
+        message: `15m bias is ${biasDirection} (${htfBias}). RSI: ${htfRSI.toFixed(1)}. EMA trend: ${emaFilter ? "Confirmed" : "Against bias"}. Waiting for 5m entry signal...`
       });
     }
 
     const last = ltfCandles[ltfCandles.length - 1];
     const entry = last.close;
 
-    // Stop loss
     let stopLoss;
     if (ob && ob.direction === biasDirection) {
       stopLoss = biasDirection === "BUY" ? ob.low - (ltfATR * 0.5) : ob.high + (ltfATR * 0.5);
@@ -236,7 +267,6 @@ app.get("/smc/:rr", async (req, res) => {
 
     const takeProfit = calcTP(entry, stopLoss, rr, biasDirection);
 
-    // Confidence score
     let confidence = 50;
     if (matchingSignals.length >= 2) confidence += 15;
     if (matchingSignals.length >= 3) confidence += 10;
@@ -247,9 +277,7 @@ app.get("/smc/:rr", async (req, res) => {
     confidence = Math.min(95, confidence);
 
     const reasons = matchingSignals.map(s => s.type).join(", ");
-    const emaStatus = ema50 && ema200 ? `EMA50 ${ema50 > ema200 ? "above" : "below"} EMA200` : "";
-
-    const analysis = `15m shows ${htfBias} with RSI at ${htfRSI.toFixed(1)}. ${emaStatus}. On 5m, detected: ${reasons}. ${biasDirection === "BUY" ? "Bullish" : "Bearish"} confluence confirmed. Entry at ${entry.toFixed(2)}, SL at ${stopLoss.toFixed(2)}, TP at ${takeProfit.toFixed(2)} (${rr} R:R).`;
+    const analysis = buildAnalysisParagraph(null, htfBias, matchingSignals, biasDirection, htfRSI, ltfRSI, emaFilter, entry, stopLoss, takeProfit, rr);
 
     const signal = {
       pair: "XAU/USD",
@@ -273,6 +301,7 @@ app.get("/smc/:rr", async (req, res) => {
     };
 
     latestSignal = signal;
+    sendSignalEmail(signal).catch(err => console.error("Email error:", err));
     res.json(signal);
 
   } catch (err) {
