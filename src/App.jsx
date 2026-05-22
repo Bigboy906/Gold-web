@@ -1,87 +1,151 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
-function App() {
+const timeframes = ["5m", "15m", "30m", "1H", "4H"];
+
+export default function App() {
   const [signal, setSignal] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [selectedTF, setSelectedTF] = useState("1H");
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchSignal = async () => {
-      try {
-        const res = await fetch("http://localhost:3001/signal");
-        const data = await res.json();
-        if (data.pair) {
-          setSignal(data);
-        }
-      } catch (err) {
-        console.error("Error fetching signal:", err);
-      } finally {
-        setLoading(false);
+  const analyse = async () => {
+    setLoading(true);
+    setError(null);
+    setSignal(null);
+    try {
+      const res = await fetch(`https://gold-web.onrender.com/analyse/${selectedTF}`);
+      const data = await res.json();
+      if (data.error || data.message) {
+        setError(data.error || data.message);
+      } else {
+        setSignal(data);
       }
-    };
-
-    fetchSignal();
-    const interval = setInterval(fetchSignal, 10000);
-    return () => clearInterval(interval);
-  }, []);
+    } catch (err) {
+      setError("Failed to connect to server");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div style={{ background: "#0d0d0d", minHeight: "100vh", color: "white", fontFamily: "sans-serif", padding: "20px", maxWidth: "480px", margin: "0 auto" }}>
-      <h1 style={{ color: "#f0b90b", textAlign: "center" }}>XAUUSD Signal</h1>
+    <div className="min-h-screen bg-[#0a0a0f] text-white font-sans">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-yellow-500 rounded-lg flex items-center justify-center text-black font-bold text-sm">G</div>
+          <span className="text-white font-bold text-lg">GoldSignal</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          <span className="text-green-400 text-sm">Live</span>
+        </div>
+      </div>
 
-      {loading ? (
-        <p style={{ textAlign: "center" }}>Loading...</p>
-      ) : signal ? (
-        <div style={{ background: "#1a1a1a", borderRadius: "12px", padding: "20px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
-            <span style={{ fontSize: "20px", fontWeight: "bold" }}>{signal.pair}</span>
-            <span style={{ background: signal.direction === "BUY" ? "#00c853" : "#ff1744", padding: "4px 12px", borderRadius: "6px", fontWeight: "bold" }}>
-              {signal.direction}
-            </span>
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-white">XAUUSD Analysis</h1>
+          <p className="text-gray-500 text-sm mt-1">Select a timeframe and press Analyse</p>
+        </div>
+
+        {/* Timeframe Selector */}
+        <div className="bg-[#111118] rounded-2xl p-5 border border-white/10 mb-4">
+          <p className="text-gray-400 text-xs uppercase tracking-wider mb-3">Timeframe</p>
+          <div className="flex gap-2 flex-wrap">
+            {timeframes.map(tf => (
+              <button
+                key={tf}
+                onClick={() => setSelectedTF(tf)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  selectedTF === tf
+                    ? "bg-yellow-500 text-black shadow-[0_0_12px_rgba(234,179,8,0.5)]"
+                    : "bg-white/5 text-gray-400 hover:bg-white/10"
+                }`}
+              >
+                {tf}
+              </button>
+            ))}
           </div>
 
-          <div style={{ background: "#111", borderRadius: "8px", padding: "10px", marginBottom: "10px" }}>
-            <p>Confidence: <strong>{signal.confidence}%</strong></p>
-            <p>Pattern: <strong>{signal.pattern}</strong></p>
-            <p>Trend: <strong>{signal.trend}</strong></p>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "10px" }}>
-            <div style={{ background: "#111", padding: "10px", borderRadius: "8px", textAlign: "center" }}>
-              <p style={{ color: "#888", fontSize: "12px" }}>ENTRY</p>
-              <p style={{ color: "#f0b90b" }}>{signal.entry}</p>
-            </div>
-            <div style={{ background: "#111", padding: "10px", borderRadius: "8px", textAlign: "center" }}>
-              <p style={{ color: "#888", fontSize: "12px" }}>TARGET</p>
-              <p style={{ color: "#00c853" }}>{signal.takeProfit}</p>
-            </div>
-            <div style={{ background: "#111", padding: "10px", borderRadius: "8px", textAlign: "center" }}>
-              <p style={{ color: "#888", fontSize: "12px" }}>STOP</p>
-              <p style={{ color: "#ff1744" }}>{signal.stopLoss}</p>
-            </div>
-          </div>
-
-          <div style={{ background: "#111", borderRadius: "8px", padding: "10px", marginBottom: "10px" }}>
-            <p style={{ color: "#888", fontSize: "12px" }}>AI ANALYSIS</p>
-            <p style={{ fontSize: "14px" }}>{signal.analysis}</p>
-          </div>
-
-          <p style={{ color: "#555", fontSize: "11px", textAlign: "center" }}>
-            Last updated: {new Date(signal.timestamp).toLocaleTimeString()}
-          </p>
-
-          <button style={{ width: "100%", background: "#f0b90b", color: "#000", border: "none", padding: "14px", borderRadius: "8px", fontWeight: "bold", fontSize: "16px", cursor: "pointer" }}>
-            ⚡ Copy This Trade
+          <button
+            onClick={analyse}
+            disabled={loading}
+            className="w-full mt-4 bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 text-black font-bold py-3 rounded-xl transition-colors shadow-[0_0_20px_rgba(234,179,8,0.3)]"
+          >
+            {loading ? "Analysing..." : "⚡ Analyse Chart"}
           </button>
         </div>
-      ) : (
-        <div style={{ background: "#1a1a1a", borderRadius: "12px", padding: "40px", textAlign: "center" }}>
-          <p style={{ fontSize: "40px" }}>⏳</p>
-          <p>Waiting for signal from TradingView...</p>
-          <p style={{ color: "#555", fontSize: "12px" }}>Checks every 10 seconds</p>
-        </div>
-      )}
+
+        {/* Error */}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 mb-4 text-red-400 text-sm">
+            {error}
+          </div>
+        )}
+
+        {/* Signal Card */}
+        {signal && (
+          <div className="bg-[#111118] rounded-2xl border border-white/10 overflow-hidden">
+            {/* Signal Header */}
+            <div className="flex items-center justify-between p-5 border-b border-white/10">
+              <div>
+                <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">{signal.timeframe} Signal</p>
+                <p className="text-xl font-bold">{signal.pair}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-400">Confidence: <span className="text-white font-bold">{signal.confidence}%</span></span>
+                <span className={`px-4 py-2 rounded-lg font-bold text-sm ${
+                  signal.direction === "BUY"
+                    ? "bg-green-500/20 text-green-400 border border-green-500/30 shadow-[0_0_12px_rgba(74,222,128,0.4)]"
+                    : "bg-red-500/20 text-red-400 border border-red-500/30 shadow-[0_0_12px_rgba(248,113,113,0.4)]"
+                }`}>
+                  {signal.direction}
+                </span>
+              </div>
+            </div>
+
+            {/* Price Levels */}
+            <div className="grid grid-cols-3 gap-px bg-white/5 border-b border-white/10">
+              <div className="bg-[#111118] p-4 text-center">
+                <p className="text-gray-500 text-xs uppercase mb-2">Entry</p>
+                <p className="text-yellow-400 font-bold text-lg drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]">{signal.entry}</p>
+              </div>
+              <div className="bg-[#111118] p-4 text-center">
+                <p className="text-gray-500 text-xs uppercase mb-2">Take Profit</p>
+                <p className="text-green-400 font-bold text-lg drop-shadow-[0_0_8px_rgba(74,222,128,0.8)]">{signal.takeProfit}</p>
+              </div>
+              <div className="bg-[#111118] p-4 text-center">
+                <p className="text-gray-500 text-xs uppercase mb-2">Stop Loss</p>
+                <p className="text-red-400 font-bold text-lg drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]">{signal.stopLoss}</p>
+              </div>
+            </div>
+
+            {/* Indicators */}
+            <div className="grid grid-cols-3 gap-4 p-5 border-b border-white/10">
+              <div className="bg-white/5 rounded-xl p-3">
+                <p className="text-gray-500 text-xs mb-1">RSI</p>
+                <p className="text-white font-medium">{signal.rsi}</p>
+              </div>
+              <div className="bg-white/5 rounded-xl p-3">
+                <p className="text-gray-500 text-xs mb-1">Trend</p>
+                <p className={signal.trend === "Bullish"
+                  ? "text-green-400 font-medium drop-shadow-[0_0_8px_rgba(74,222,128,0.8)]"
+                  : "text-red-400 font-medium drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]"
+                }>{signal.trend}</p>
+              </div>
+              <div className="bg-white/5 rounded-xl p-3">
+                <p className="text-gray-500 text-xs mb-1">R:R</p>
+                <p className="text-white font-medium">{signal.rr}</p>
+              </div>
+            </div>
+
+            {/* AI Analysis */}
+            <div className="p-5">
+              <p className="text-gray-500 text-xs uppercase mb-2">⚡ AI Analysis</p>
+              <p className="text-gray-300 text-sm leading-relaxed">{signal.analysis}</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-
-export default App;
