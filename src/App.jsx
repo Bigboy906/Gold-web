@@ -36,21 +36,16 @@ function CandlestickBackground() {
 
   return (
     <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-      {/* Grid */}
       <div className="absolute inset-0" style={{
         backgroundImage: "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
         backgroundSize: "60px 60px"
       }} />
-
-      {/* Glowing orbs — more visible */}
       <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] rounded-full"
         style={{ background: "radial-gradient(circle, rgba(245,158,11,0.15), transparent 70%)", filter: "blur(40px)", animation: "pulse 6s ease-in-out infinite" }} />
       <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full"
         style={{ background: "radial-gradient(circle, rgba(59,130,246,0.15), transparent 70%)", filter: "blur(40px)", animation: "pulse 8s ease-in-out 2s infinite" }} />
       <div className="absolute top-1/2 left-1/2 w-[300px] h-[300px] rounded-full"
         style={{ background: "radial-gradient(circle, rgba(34,197,94,0.12), transparent 70%)", filter: "blur(40px)", animation: "pulse 7s ease-in-out 1s infinite" }} />
-
-      {/* Candles — more visible */}
       <svg width="100%" height="100%" className="absolute inset-0">
         <defs>
           <filter id="glow">
@@ -67,28 +62,14 @@ function CandlestickBackground() {
               }
             `}</style>
             <g style={{ animation: `candle-${c.i} ${c.duration}s ease-in-out ${c.delay}s infinite` }}>
-              <line
-                x1={`${c.x}%`} y1={`${c.yPos}%`}
-                x2={`${c.x}%`} y2={`${c.yPos + c.totalH / 6}%`}
-                stroke={c.isUp ? "#22c55e" : "#ef4444"}
-                strokeWidth="2"
-                filter="url(#glow)"
-              />
-              <rect
-                x={`calc(${c.x}% - 6px)`}
-                y={`${c.yPos + 8}%`}
-                width="12"
-                height={`${c.bodyH / 10}%`}
-                fill={c.isUp ? "#22c55e" : "#ef4444"}
-                rx="2"
-                filter="url(#glow)"
-              />
+              <line x1={`${c.x}%`} y1={`${c.yPos}%`} x2={`${c.x}%`} y2={`${c.yPos + c.totalH / 6}%`}
+                stroke={c.isUp ? "#22c55e" : "#ef4444"} strokeWidth="2" filter="url(#glow)" />
+              <rect x={`calc(${c.x}% - 6px)`} y={`${c.yPos + 8}%`} width="12" height={`${c.bodyH / 10}%`}
+                fill={c.isUp ? "#22c55e" : "#ef4444"} rx="2" filter="url(#glow)" />
             </g>
           </g>
         ))}
       </svg>
-
-      {/* Lighter overlays so candles show through */}
       <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/70 via-[#0a0a0f]/30 to-[#0a0a0f]/70" />
       <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0f]/60 via-transparent to-[#0a0a0f]/60" />
     </div>
@@ -159,11 +140,15 @@ export default function App() {
     { text: sessionInfo.killzone ? `🎯 ${sessionInfo.killzone} ACTIVE` : "No Killzone", color: sessionInfo.killzone ? sessionInfo.killzoneColor + " font-bold" : "text-gray-500" },
     { text: `Strategy: SMC + Price Action`, color: "text-blue-400" },
     { text: `HTF: 15m  •  LTF: 5m`, color: "text-purple-400" },
-    { text: `OB  •  Liquidity  •  Engulfing  •  FVG  •  RSI  •  EMA`, color: "text-gray-300" },
+    { text: `MSS  •  IDM  •  OB  •  BB  •  FVG  •  Liquidity  •  Supply/Demand`, color: "text-gray-300" },
   ];
 
   const allTickers = [...tickerItems, ...tickerItems, ...tickerItems];
   const currentPrice = prices[selectedPair];
+
+  const Tag = ({ text, color }) => (
+    <span className={`px-2 py-0.5 rounded-full text-xs border ${color}`}>{text}</span>
+  );
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white font-sans relative">
@@ -194,7 +179,7 @@ export default function App() {
         <div className="bg-[#0d0d14]/70 border-b border-white/10 py-1.5 overflow-hidden backdrop-blur-sm shrink-0">
           <style>{`
             @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-33.33%); } }
-            .ticker-track { display: flex; width: max-content; animation: ticker 45s linear infinite; }
+            .ticker-track { display: flex; width: max-content; animation: ticker 50s linear infinite; }
             .ticker-track:hover { animation-play-state: paused; }
           `}</style>
           <div className="ticker-track">
@@ -220,10 +205,9 @@ export default function App() {
         <div className="flex flex-1 gap-4 p-4 overflow-hidden">
 
           {/* LEFT */}
-          <div className="w-80 shrink-0 flex flex-col gap-4 overflow-y-auto">
+          <div className="w-80 shrink-0 flex flex-col gap-3 overflow-y-auto">
             <div className="bg-[#111118]/80 backdrop-blur-md rounded-2xl p-4 border border-white/15 shadow-[0_0_30px_rgba(0,0,0,0.5)]">
 
-              {/* Pair */}
               <p className="text-gray-300 text-xs uppercase tracking-wider mb-2 font-semibold">Pair</p>
               <div className="flex gap-1.5 flex-wrap mb-4">
                 {PAIRS.map(pair => (
@@ -236,7 +220,6 @@ export default function App() {
                 ))}
               </div>
 
-              {/* Timeframe */}
               <p className="text-gray-300 text-xs uppercase tracking-wider mb-2 font-semibold">Timeframe</p>
               <div className="flex gap-1.5 flex-wrap mb-4">
                 {TIMEFRAMES.map(tf => (
@@ -249,7 +232,6 @@ export default function App() {
                 ))}
               </div>
 
-              {/* RR */}
               <p className="text-gray-300 text-xs uppercase tracking-wider mb-2 font-semibold">Risk : Reward</p>
               <div className="flex gap-1.5 flex-wrap mb-4">
                 {RR_OPTIONS.map(rr => (
@@ -282,6 +264,8 @@ export default function App() {
 
             {signal && (
               <div className="bg-[#111118]/80 backdrop-blur-md rounded-2xl border border-white/15 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.5)]">
+
+                {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b border-white/10">
                   <div>
                     <p className="text-gray-400 text-xs mb-0.5">SMC • {signal.timeframe}</p>
@@ -297,6 +281,7 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Price levels */}
                 <div className="grid grid-cols-3 gap-px bg-white/5 border-b border-white/10">
                   <div className="bg-[#111118]/80 p-3 text-center">
                     <p className="text-gray-400 text-xs mb-1">Entry</p>
@@ -312,6 +297,7 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Indicators */}
                 <div className="grid grid-cols-2 gap-2 p-3 border-b border-white/10">
                   {[
                     { label: "15m Bias", value: signal.trend, color: signal.trend?.includes("Bullish") ? "text-green-400" : "text-red-400" },
@@ -321,22 +307,39 @@ export default function App() {
                     { label: "EMA 50", value: signal.ema50 || "N/A", color: "text-white" },
                     { label: "EMA OK", value: signal.emaConfirmed ? "✓ Yes" : "✗ No", color: signal.emaConfirmed ? "text-green-400" : "text-red-400" },
                   ].map((item, i) => (
-                    <div key={i} className="bg-white/8 rounded-lg p-2 border border-white/10">
+                    <div key={i} className="bg-white/5 rounded-lg p-2 border border-white/10">
                       <p className="text-gray-400 text-xs mb-0.5">{item.label}</p>
                       <p className={`text-xs font-medium ${item.color}`}>{item.value}</p>
                     </div>
                   ))}
                 </div>
 
+                {/* Entry Reasons */}
                 <div className="p-3 border-b border-white/10">
-                  <p className="text-gray-400 text-xs mb-1.5">Entry Reasons</p>
+                  <p className="text-gray-400 text-xs mb-1.5">Entry Signals</p>
                   <div className="flex flex-wrap gap-1">
                     {signal.reasons?.split(", ").map((reason, i) => (
-                      <span key={i} className="bg-yellow-500/15 text-yellow-300 border border-yellow-500/30 px-2 py-0.5 rounded-full text-xs">{reason}</span>
+                      <Tag key={i} text={reason} color="bg-yellow-500/10 text-yellow-300 border-yellow-500/30" />
                     ))}
                   </div>
                 </div>
 
+                {/* Extra Confluence */}
+                <div className="p-3 border-b border-white/10">
+                  <p className="text-gray-400 text-xs mb-1.5">Extra Confluence</p>
+                  <div className="flex flex-wrap gap-1">
+                    {signal.mss && <Tag text={signal.mss} color="bg-purple-500/10 text-purple-300 border-purple-500/30" />}
+                    {signal.idm && <Tag text={signal.idm} color="bg-blue-500/10 text-blue-300 border-blue-500/30" />}
+                    {signal.breaker && <Tag text={signal.breaker} color="bg-pink-500/10 text-pink-300 border-pink-500/30" />}
+                    {signal.supplyDemand && <Tag text={signal.supplyDemand} color="bg-orange-500/10 text-orange-300 border-orange-500/30" />}
+                    {signal.equalLevels && <Tag text={signal.equalLevels} color="bg-red-500/10 text-red-300 border-red-500/30" />}
+                    {!signal.mss && !signal.idm && !signal.breaker && !signal.supplyDemand && !signal.equalLevels && (
+                      <span className="text-gray-500 text-xs">None detected</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Analysis */}
                 <div className="p-3">
                   <p className="text-gray-400 text-xs mb-1.5">⚡ AI Analysis</p>
                   <p className="text-gray-200 text-xs leading-relaxed">{signal.analysis}</p>
