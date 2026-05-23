@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import Chart from "./Chart";
 
 const TIMEFRAMES = ["5m", "15m", "30m", "1H", "4H"];
 const RR_OPTIONS = ["1:1.5", "1:2", "1:3", "1:3.5"];
@@ -48,21 +49,16 @@ function CandlestickBackground() {
 
   return (
     <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-      {/* Grid lines */}
       <div className="absolute inset-0" style={{
         backgroundImage: "linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)",
         backgroundSize: "60px 60px"
       }} />
-
-      {/* Glowing orbs */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-5"
         style={{ background: "radial-gradient(circle, #f59e0b, transparent 70%)", filter: "blur(60px)", animation: "pulse 6s ease-in-out infinite" }} />
       <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-5"
         style={{ background: "radial-gradient(circle, #3b82f6, transparent 70%)", filter: "blur(60px)", animation: "pulse 8s ease-in-out 2s infinite" }} />
       <div className="absolute top-1/2 right-1/3 w-64 h-64 rounded-full opacity-4"
         style={{ background: "radial-gradient(circle, #22c55e, transparent 70%)", filter: "blur(50px)", animation: "pulse 7s ease-in-out 1s infinite" }} />
-
-      {/* Candles */}
       <svg width="100%" height="100%" className="absolute inset-0">
         <defs>
           <filter id="glow">
@@ -79,46 +75,16 @@ function CandlestickBackground() {
               }
             `}</style>
             <g style={{ animation: `candle-${c.i} ${c.duration}s ease-in-out ${c.delay}s infinite` }}>
-              <line
-                x1={`${c.x}%`} y1={`${c.yPos}%`}
-                x2={`${c.x}%`} y2={`${c.yPos + c.totalH / 8}%`}
-                stroke={c.isUp ? "#22c55e" : "#ef4444"}
-                strokeWidth="1.5"
-                filter="url(#glow)"
-              />
-              <rect
-                x={`calc(${c.x}% - 5px)`}
-                y={`${c.yPos + 5}%`}
-                width="10"
-                height={`${c.bodyH / 12}%`}
-                fill={c.isUp ? "#22c55e" : "#ef4444"}
-                rx="1.5"
-                filter="url(#glow)"
-              />
+              <line x1={`${c.x}%`} y1={`${c.yPos}%`} x2={`${c.x}%`} y2={`${c.yPos + c.totalH / 8}%`}
+                stroke={c.isUp ? "#22c55e" : "#ef4444"} strokeWidth="1.5" filter="url(#glow)" />
+              <rect x={`calc(${c.x}% - 5px)`} y={`${c.yPos + 5}%`} width="10" height={`${c.bodyH / 12}%`}
+                fill={c.isUp ? "#22c55e" : "#ef4444"} rx="1.5" filter="url(#glow)" />
             </g>
           </g>
         ))}
       </svg>
-
-      {/* Dark overlays */}
       <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/90 via-[#0a0a0f]/50 to-[#0a0a0f]/90" />
       <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0f]/80 via-transparent to-[#0a0a0f]/80" />
-    </div>
-  );
-}
-
-function TradingViewChart({ interval }) {
-  const intervalMap = { "5m": "5", "15m": "15", "30m": "30", "1H": "60", "4H": "240" };
-  return (
-    <div className="h-full w-full rounded-2xl overflow-hidden border border-white/10">
-      <iframe
-        key={interval}
-        src={`https://s.tradingview.com/widgetembed/?frameElementId=tv&symbol=OANDA%3AXAUUSD&interval=${intervalMap[interval] || "15"}&theme=dark&style=1&locale=en&studies=RSI%40tv-basicstudies&hidesidetoolbar=0&hidetoptoolbar=0&withdateranges=1`}
-        style={{ width: "100%", height: "100%" }}
-        frameBorder="0"
-        allowTransparency={true}
-        allowFullScreen={true}
-      />
     </div>
   );
 }
@@ -249,13 +215,11 @@ export default function App() {
           </div>
         )}
 
-        {/* Main Layout — Left + Right */}
+        {/* Main Layout */}
         <div className="flex flex-1 gap-4 p-4 overflow-hidden">
 
-          {/* LEFT — Controls + Signal */}
+          {/* LEFT */}
           <div className="w-80 shrink-0 flex flex-col gap-4 overflow-y-auto">
-
-            {/* Controls */}
             <div className="bg-[#111118]/90 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
               <p className="text-gray-400 text-xs uppercase tracking-wider mb-2">Timeframe</p>
               <div className="flex gap-1.5 flex-wrap mb-4">
@@ -287,21 +251,18 @@ export default function App() {
               </button>
             </div>
 
-            {/* Message */}
             {message && (
               <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-3 text-blue-300 text-xs backdrop-blur-sm">
                 📊 {message}
               </div>
             )}
 
-            {/* Error */}
             {error && (
               <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-3 text-red-400 text-xs backdrop-blur-sm">
                 ⚠️ {error}
               </div>
             )}
 
-            {/* Signal Card */}
             {signal && (
               <div className="bg-[#111118]/90 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden">
                 <div className="flex items-center justify-between p-4 border-b border-white/10">
@@ -378,9 +339,9 @@ export default function App() {
             )}
           </div>
 
-          {/* RIGHT — Chart */}
+          {/* RIGHT — Lightweight Chart */}
           <div className="flex-1 min-w-0">
-            <TradingViewChart interval={selectedTF} />
+            <Chart signal={signal} interval={selectedTF} />
           </div>
 
         </div>

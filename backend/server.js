@@ -1,336 +1,367 @@
-const express = require("express");
-const cors = require("cors");
-const nodemailer = require("nodemailer");
-require("dotenv").config();
+import { useState, useEffect } from "react";
+import Chart from "./Chart";
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+const TIMEFRAMES = ["5m", "15m", "30m", "1H", "4H"];
+const RR_OPTIONS = ["1:1.5", "1:2", "1:3", "1:3.5"];
+const PAIRS = ["XAU/USD", "BTC/USD"];
 
-const TWELVE_KEY = "865285eec7c449129e724b96f92c56d4";
+function getSessionInfo() {
+  const now = new Date();
+  const utcHour = now.getUTCHours();
+  const utcMin = now.getUTCMinutes();
+  const utcTime = utcHour + utcMin / 60;
 
-let latestSignal = null;
+  let session, killzone, sessionColor, killzoneColor;
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: "samwelkimani659@gmail.com",
-    pass: process.env.GMAIL_PASS,
-  },
-});
+  if (utcTime >= 0 && utcTime < 7) {
+    session = "Asian"; sessionColor = "text-purple-400";
+  } else if (utcTime >= 7 && utcTime < 13) {
+    session = "London"; sessionColor = "text-blue-400";
+  } else if (utcTime >= 13 && utcTime < 22) {
+    session = "New York"; sessionColor = "text-orange-400";
+  } else {
+    session = "Off Hours"; sessionColor = "text-gray-500";
+  }
 
-async function sendSignalEmail(signal) {
-  const direction = signal.direction === "BUY" ? "🟢 BUY" : "🔴 SELL";
-  const html = `
-    <div style="font-family: sans-serif; background: #0a0a0f; color: white; padding: 24px; border-radius: 12px; max-width: 500px;">
-      <h2 style="color: #f59e0b;">⚡ GoldSignal Alert</h2>
-      <h3 style="color: white;">${direction} — ${signal.pair}</h3>
-      <p style="color: #9ca3af;">Timeframe: ${signal.timeframe} | Confidence: ${signal.confidence}%</p>
-      <table style="width:100%; border-collapse: collapse; margin: 16px 0;">
-        <tr>
-          <td style="padding: 8px; color: #f59e0b; border: 1px solid #333;">Entry</td>
-          <td style="padding: 8px; color: white; border: 1px solid #333;">${signal.entry}</td>
-        </tr>
-        <tr>
-          <td style="padding: 8px; color: #22c55e; border: 1px solid #333;">Take Profit</td>
-          <td style="padding: 8px; color: white; border: 1px solid #333;">${signal.takeProfit}</td>
-        </tr>
-        <tr>
-          <td style="padding: 8px; color: #ef4444; border: 1px solid #333;">Stop Loss</td>
-          <td style="padding: 8px; color: white; border: 1px solid #333;">${signal.stopLoss}</td>
-        </tr>
-        <tr>
-          <td style="padding: 8px; color: #9ca3af; border: 1px solid #333;">R:R</td>
-          <td style="padding: 8px; color: white; border: 1px solid #333;">${signal.rr}</td>
-        </tr>
-      </table>
-      <p style="color: #9ca3af; font-size: 13px;"><strong style="color: #a78bfa;">15m Bias:</strong> ${signal.trend}</p>
-      <p style="color: #9ca3af; font-size: 13px;"><strong style="color: #a78bfa;">Entry Reasons:</strong> ${signal.reasons}</p>
-      <p style="color: #9ca3af; font-size: 13px;"><strong style="color: #a78bfa;">Analysis:</strong> ${signal.analysis}</p>
-      <p style="color: #6b7280; font-size: 11px; margin-top: 16px;">Sent at ${new Date().toUTCString()}</p>
-    </div>
-  `;
+  if (utcTime >= 0 && utcTime < 3) {
+    killzone = "Asian KZ"; killzoneColor = "text-purple-300";
+  } else if (utcTime >= 7 && utcTime < 9) {
+    killzone = "London Open KZ"; killzoneColor = "text-blue-300";
+  } else if (utcTime >= 12 && utcTime < 13.5) {
+    killzone = "NY Open KZ"; killzoneColor = "text-orange-300";
+  } else if (utcTime >= 15 && utcTime < 16) {
+    killzone = "London Close KZ"; killzoneColor = "text-pink-300";
+  }
 
-  await transporter.sendMail({
-    from: "samwelkimani659@gmail.com",
-    to: ["samwelkimani659@gmail.com", "morenochristopher851@gmail.com"],
-    subject: `⚡ GoldSignal: ${signal.direction} XAU/USD @ ${signal.entry}`,
-    html,
+  return { session, sessionColor, killzone, killzoneColor };
+}
+
+function CandlestickBackground() {
+  const candles = Array.from({ length: 40 }, (_, i) => {
+    const isUp = Math.random() > 0.5;
+    const bodyH = 40 + Math.random() * 100;
+    const totalH = bodyH + 20 + Math.random() * 60;
+    const yPos = 10 + Math.random() * 70;
+    const duration = 8 + Math.random() * 10;
+    const delay = Math.random() * 10;
+    const opacity = 0.03 + Math.random() * 0.07;
+    return { i, isUp, bodyH, totalH, yPos, duration, delay, opacity, x: (i / 40) * 105 };
   });
+
+  return (
+    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+      <div className="absolute inset-0" style={{
+        backgroundImage: "linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)",
+        backgroundSize: "60px 60px"
+      }} />
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-5"
+        style={{ background: "radial-gradient(circle, #f59e0b, transparent 70%)", filter: "blur(60px)", animation: "pulse 6s ease-in-out infinite" }} />
+      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-5"
+        style={{ background: "radial-gradient(circle, #3b82f6, transparent 70%)", filter: "blur(60px)", animation: "pulse 8s ease-in-out 2s infinite" }} />
+      <div className="absolute top-1/2 right-1/3 w-64 h-64 rounded-full opacity-4"
+        style={{ background: "radial-gradient(circle, #22c55e, transparent 70%)", filter: "blur(50px)", animation: "pulse 7s ease-in-out 1s infinite" }} />
+      <svg width="100%" height="100%" className="absolute inset-0">
+        <defs>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="2" result="coloredBlur" />
+            <feMerge><feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+        </defs>
+        {candles.map((c) => (
+          <g key={c.i} style={{ opacity: c.opacity }}>
+            <style>{`
+              @keyframes candle-${c.i} {
+                0%, 100% { transform: translateY(0px); }
+                50% { transform: translateY(-${15 + Math.random() * 20}px); }
+              }
+            `}</style>
+            <g style={{ animation: `candle-${c.i} ${c.duration}s ease-in-out ${c.delay}s infinite` }}>
+              <line x1={`${c.x}%`} y1={`${c.yPos}%`} x2={`${c.x}%`} y2={`${c.yPos + c.totalH / 8}%`}
+                stroke={c.isUp ? "#22c55e" : "#ef4444"} strokeWidth="1.5" filter="url(#glow)" />
+              <rect x={`calc(${c.x}% - 5px)`} y={`${c.yPos + 5}%`} width="10" height={`${c.bodyH / 12}%`}
+                fill={c.isUp ? "#22c55e" : "#ef4444"} rx="1.5" filter="url(#glow)" />
+            </g>
+          </g>
+        ))}
+      </svg>
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/90 via-[#0a0a0f]/50 to-[#0a0a0f]/90" />
+      <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0f]/80 via-transparent to-[#0a0a0f]/80" />
+    </div>
+  );
 }
 
-async function fetchCandles(interval, outputsize = 100) {
-  const fetch = (await import("node-fetch")).default;
-  const intervalMap = {
-    "5m": "5min", "15m": "15min", "30m": "30min", "1H": "1h", "4H": "4h",
-  };
-  const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=${intervalMap[interval]}&outputsize=${outputsize}&apikey=${TWELVE_KEY}`;
-  const res = await fetch(url);
-  const data = await res.json();
-  if (data.status === "error" || !data.values) return null;
-  return data.values.map(v => ({
-    time: v.datetime,
-    open: parseFloat(v.open),
-    high: parseFloat(v.high),
-    low: parseFloat(v.low),
-    close: parseFloat(v.close),
-  })).reverse();
-}
+export default function App() {
+  const [signal, setSignal] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [selectedRR, setSelectedRR] = useState("1:2");
+  const [selectedTF, setSelectedTF] = useState("15m");
+  const [selectedPair, setSelectedPair] = useState("XAU/USD");
+  const [error, setError] = useState(null);
+  const [message, setMessage] = useState(null);
+  const [prices, setPrices] = useState({});
+  const [change, setChange] = useState(null);
+  const [changePct, setChangePct] = useState(null);
+  const [time, setTime] = useState(new Date());
+  const [sessionInfo, setSessionInfo] = useState(getSessionInfo());
 
-function calcRSI(candles, period = 14) {
-  if (candles.length < period + 1) return 50;
-  let gains = 0, losses = 0;
-  for (let i = candles.length - period; i < candles.length; i++) {
-    const diff = candles[i].close - candles[i - 1].close;
-    if (diff > 0) gains += diff;
-    else losses += Math.abs(diff);
-  }
-  const rs = gains / (losses || 1);
-  return 100 - 100 / (1 + rs);
-}
+  useEffect(() => {
+    const clock = setInterval(() => { setTime(new Date()); setSessionInfo(getSessionInfo()); }, 1000);
+    return () => clearInterval(clock);
+  }, []);
 
-function calcEMA(candles, period) {
-  if (candles.length < period) return null;
-  const k = 2 / (period + 1);
-  let ema = candles.slice(0, period).reduce((sum, c) => sum + c.close, 0) / period;
-  for (let i = period; i < candles.length; i++) {
-    ema = candles[i].close * k + ema * (1 - k);
-  }
-  return ema;
-}
-
-function calcATR(candles, period = 14) {
-  if (candles.length < period) return 1;
-  let atr = 0;
-  for (let i = candles.length - period; i < candles.length; i++) {
-    atr += candles[i].high - candles[i].low;
-  }
-  return atr / period;
-}
-
-function detectBOS(candles) {
-  if (candles.length < 5) return null;
-  const len = candles.length;
-  const prev = candles[len - 3];
-  const curr = candles[len - 1];
-  if (curr.high > prev.high) return "Bullish BOS";
-  if (curr.low < prev.low) return "Bearish BOS";
-  return null;
-}
-
-function detectCHOCH(candles) {
-  if (candles.length < 6) return null;
-  const len = candles.length;
-  const c1 = candles[len - 4];
-  const c2 = candles[len - 3];
-  const c3 = candles[len - 2];
-  const c4 = candles[len - 1];
-  if (c1.low < c2.low && c4.high > c3.high) return "Bullish CHOCH";
-  if (c1.high > c2.high && c4.low < c3.low) return "Bearish CHOCH";
-  return null;
-}
-
-function detectOrderBlock(candles) {
-  if (candles.length < 4) return null;
-  const len = candles.length;
-  for (let i = len - 4; i < len - 1; i++) {
-    const candle = candles[i];
-    const next = candles[i + 1];
-    if (candle.close < candle.open && next.close > next.open && next.close > candle.high) {
-      return { type: "Bullish OB", high: candle.high, low: candle.low, direction: "BUY" };
-    }
-    if (candle.close > candle.open && next.close < next.open && next.close < candle.low) {
-      return { type: "Bearish OB", high: candle.high, low: candle.low, direction: "SELL" };
-    }
-  }
-  return null;
-}
-
-function detectLiquiditySweep(candles) {
-  if (candles.length < 5) return null;
-  const len = candles.length;
-  const last = candles[len - 1];
-  const swingHigh = Math.max(...candles.slice(len - 5, len - 1).map(c => c.high));
-  const swingLow = Math.min(...candles.slice(len - 5, len - 1).map(c => c.low));
-  if (last.high > swingHigh && last.close < swingHigh) return { type: "Bearish Liquidity Sweep", direction: "SELL" };
-  if (last.low < swingLow && last.close > swingLow) return { type: "Bullish Liquidity Sweep", direction: "BUY" };
-  return null;
-}
-
-function detectEngulfing(candles) {
-  if (candles.length < 2) return null;
-  const len = candles.length;
-  const prev = candles[len - 2];
-  const curr = candles[len - 1];
-  if (prev.close < prev.open && curr.close > curr.open && curr.close > prev.open && curr.open < prev.close) {
-    return { type: "Bullish Engulfing", direction: "BUY" };
-  }
-  if (prev.close > prev.open && curr.close < curr.open && curr.close < prev.open && curr.open > prev.close) {
-    return { type: "Bearish Engulfing", direction: "SELL" };
-  }
-  return null;
-}
-
-function detectRejectionWick(candles) {
-  if (candles.length < 1) return null;
-  const last = candles[candles.length - 1];
-  const body = Math.abs(last.close - last.open);
-  const upperWick = last.high - Math.max(last.close, last.open);
-  const lowerWick = Math.min(last.close, last.open) - last.low;
-  if (upperWick > body * 2 && upperWick > lowerWick) return { type: "Bearish Rejection Wick", direction: "SELL" };
-  if (lowerWick > body * 2 && lowerWick > upperWick) return { type: "Bullish Rejection Wick", direction: "BUY" };
-  return null;
-}
-
-function detectFVG(candles) {
-  if (candles.length < 3) return null;
-  const len = candles.length;
-  const c1 = candles[len - 3];
-  const c3 = candles[len - 1];
-  if (c3.low > c1.high) return { type: "Bullish FVG", direction: "BUY" };
-  if (c3.high < c1.low) return { type: "Bearish FVG", direction: "SELL" };
-  return null;
-}
-
-function calcTP(entry, sl, rr, direction) {
-  const risk = Math.abs(entry - sl);
-  const rrMap = { "1:1.5": 1.5, "1:2": 2, "1:3": 3, "1:3.5": 3.5 };
-  const multiplier = rrMap[rr] || 2;
-  return direction === "BUY" ? entry + risk * multiplier : entry - risk * multiplier;
-}
-
-function buildAnalysisParagraph(signal, htfBias, matchingSignals, biasDirection, htfRSI, ltfRSI, emaFilter, entry, stopLoss, takeProfit, rr) {
-  const dir = biasDirection === "BUY" ? "bullish" : "bearish";
-  const reasons = matchingSignals.map(s => s.type).join(", ");
-  const emaText = emaFilter ? "EMA50 is above EMA200, confirming the uptrend." : "EMA trend is mixed but other confluences are strong.";
-  const rsiText = `The 15m RSI is at ${htfRSI.toFixed(1)} and 5m RSI is at ${ltfRSI.toFixed(1)}, both supporting ${dir} momentum.`;
-  const entryText = `Price is currently at ${entry.toFixed(2)}. The stop loss is placed at ${stopLoss.toFixed(2)}, just beyond the order block, protecting against invalidation. The take profit target is ${takeProfit.toFixed(2)}, giving a ${rr} risk to reward ratio.`;
-  const reasonText = `On the 5m chart, the following setups were detected: ${reasons}. These align with the ${htfBias} structure on the 15m timeframe.`;
-
-  return `The 15m chart shows a ${htfBias}, indicating a ${dir} market structure. ${rsiText} ${emaText} ${reasonText} ${entryText}`;
-}
-
-app.get("/smc/:rr", async (req, res) => {
-  const { rr } = req.params;
-  try {
-    const htfCandles = await fetchCandles("15m", 100);
-    const ltfCandles = await fetchCandles("5m", 100);
-
-    if (!htfCandles || !ltfCandles) {
-      return res.json({ error: "Could not fetch data. Try again." });
-    }
-
-    const bos = detectBOS(htfCandles);
-    const choch = detectCHOCH(htfCandles);
-    const htfBias = bos || choch;
-    const htfRSI = calcRSI(htfCandles);
-    const ema50 = calcEMA(htfCandles, 50);
-    const ema200 = calcEMA(htfCandles, 200);
-
-    if (!htfBias) {
-      return res.json({ message: "No clear market structure on 15m. Wait for BOS or CHOCH." });
-    }
-
-    const biasDirection = htfBias.includes("Bullish") ? "BUY" : "SELL";
-    const emaFilter = ema50 && ema200 ? (biasDirection === "BUY" ? ema50 > ema200 : ema50 < ema200) : true;
-    const rsiFilter = biasDirection === "BUY" ? htfRSI < 75 : htfRSI > 25;
-
-    const ltfRSI = calcRSI(ltfCandles);
-    const ltfATR = calcATR(ltfCandles);
-    const ob = detectOrderBlock(ltfCandles);
-    const sweep = detectLiquiditySweep(ltfCandles);
-    const engulfing = detectEngulfing(ltfCandles);
-    const wick = detectRejectionWick(ltfCandles);
-    const fvg = detectFVG(ltfCandles);
-
-    const allSignals = [ob, sweep, engulfing, wick, fvg].filter(Boolean);
-    const matchingSignals = allSignals.filter(s => s.direction === biasDirection);
-
-    if (matchingSignals.length === 0) {
-      return res.json({
-        message: `15m bias is ${biasDirection} (${htfBias}). RSI: ${htfRSI.toFixed(1)}. EMA trend: ${emaFilter ? "Confirmed" : "Against bias"}. Waiting for 5m entry signal...`
-      });
-    }
-
-    const last = ltfCandles[ltfCandles.length - 1];
-    const entry = last.close;
-
-    let stopLoss;
-    if (ob && ob.direction === biasDirection) {
-      stopLoss = biasDirection === "BUY" ? ob.low - (ltfATR * 0.5) : ob.high + (ltfATR * 0.5);
-    } else {
-      const swing = biasDirection === "BUY"
-        ? Math.min(...ltfCandles.slice(-5).map(c => c.low)) - (ltfATR * 0.5)
-        : Math.max(...ltfCandles.slice(-5).map(c => c.high)) + (ltfATR * 0.5);
-      stopLoss = swing;
-    }
-
-    const takeProfit = calcTP(entry, stopLoss, rr, biasDirection);
-
-    let confidence = 50;
-    if (matchingSignals.length >= 2) confidence += 15;
-    if (matchingSignals.length >= 3) confidence += 10;
-    if (emaFilter) confidence += 10;
-    if (rsiFilter) confidence += 10;
-    if (biasDirection === "BUY" && ltfRSI > 50) confidence += 5;
-    if (biasDirection === "SELL" && ltfRSI < 50) confidence += 5;
-    confidence = Math.min(95, confidence);
-
-    const reasons = matchingSignals.map(s => s.type).join(", ");
-    const analysis = buildAnalysisParagraph(null, htfBias, matchingSignals, biasDirection, htfRSI, ltfRSI, emaFilter, entry, stopLoss, takeProfit, rr);
-
-    const signal = {
-      pair: "XAU/USD",
-      direction: biasDirection,
-      entry: entry.toFixed(2),
-      takeProfit: takeProfit.toFixed(2),
-      stopLoss: stopLoss.toFixed(2),
-      rr,
-      confidence,
-      pattern: matchingSignals[0].type,
-      trend: htfBias,
-      reasons,
-      htfRSI: htfRSI.toFixed(1),
-      ltfRSI: ltfRSI.toFixed(1),
-      ema50: ema50 ? ema50.toFixed(2) : null,
-      ema200: ema200 ? ema200.toFixed(2) : null,
-      emaConfirmed: emaFilter,
-      timeframe: "15m/5m",
-      analysis,
-      timestamp: new Date().toISOString(),
+  useEffect(() => {
+    const fetchPrices = async () => {
+      try {
+        const [goldRes, btcRes] = await Promise.all([
+          fetch("https://gold-web.onrender.com/price?pair=XAU%2FUSD"),
+          fetch("https://gold-web.onrender.com/price?pair=BTC%2FUSD"),
+        ]);
+        const goldData = await goldRes.json();
+        const btcData = await btcRes.json();
+        setPrices({
+          "XAU/USD": goldData.price ? parseFloat(goldData.price).toFixed(2) : null,
+          "BTC/USD": btcData.price ? parseFloat(btcData.price).toFixed(0) : null,
+        });
+      } catch (err) {}
     };
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
-    latestSignal = signal;
-    sendSignalEmail(signal).catch(err => console.error("Email error:", err));
-    res.json(signal);
+  const analyse = async () => {
+    setLoading(true);
+    setError(null);
+    setSignal(null);
+    setMessage(null);
+    try {
+      const rrParam = selectedRR.replace(":", "%3A");
+      const pairParam = encodeURIComponent(selectedPair);
+      const res = await fetch(`https://gold-web.onrender.com/smc/${rrParam}?pair=${pairParam}`);
+      const data = await res.json();
+      if (data.error) setError(data.error);
+      else if (data.message) setMessage(data.message);
+      else setSignal(data);
+    } catch (err) {
+      setError("Failed to connect to server");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  } catch (err) {
-    console.error(err);
-    res.json({ error: "Analysis failed: " + err.message });
-  }
-});
+  const currentPrice = prices[selectedPair];
+  const isUp = parseFloat(change) >= 0;
 
-app.get("/price", async (req, res) => {
-  try {
-    const fetch = (await import("node-fetch")).default;
-    const url = `https://api.twelvedata.com/price?symbol=XAU/USD&apikey=${TWELVE_KEY}`;
-    const r = await fetch(url);
-    const data = await r.json();
-    res.json({ price: data.price });
-  } catch (err) {
-    res.json({ error: "Price fetch failed" });
-  }
-});
+  const tickerItems = [
+    { text: `XAU/USD  ${prices["XAU/USD"] ? `$${prices["XAU/USD"]}` : "..."}`, color: "text-yellow-400 font-bold drop-shadow-[0_0_6px_rgba(234,179,8,0.8)]" },
+    { text: `BTC/USD  ${prices["BTC/USD"] ? `$${prices["BTC/USD"]}` : "..."}`, color: "text-orange-400 font-bold drop-shadow-[0_0_6px_rgba(251,146,60,0.8)]" },
+    { text: `Session: ${sessionInfo.session}`, color: sessionInfo.sessionColor + " font-semibold" },
+    { text: sessionInfo.killzone ? `🎯 ${sessionInfo.killzone} ACTIVE` : "No Killzone", color: sessionInfo.killzone ? sessionInfo.killzoneColor + " font-bold" : "text-gray-600" },
+    { text: `Strategy: SMC + Price Action`, color: "text-blue-400" },
+    { text: `HTF: 15m  •  LTF: 5m`, color: "text-purple-400" },
+    { text: `OB  •  Liquidity  •  Engulfing  •  FVG  •  RSI  •  EMA`, color: "text-gray-400" },
+  ];
 
-app.post("/webhook", (req, res) => {
-  latestSignal = { ...req.body, timestamp: new Date().toISOString() };
-  res.json({ status: "ok" });
-});
+  const allTickers = [...tickerItems, ...tickerItems, ...tickerItems];
 
-app.get("/signal", (req, res) => {
-  if (latestSignal) res.json(latestSignal);
-  else res.json({ message: "No signal yet" });
-});
+  return (
+    <div className="min-h-screen bg-[#0a0a0f] text-white font-sans relative">
+      <CandlestickBackground />
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+      <div className="relative z-10 flex flex-col h-screen">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-3 border-b border-white/10 backdrop-blur-md bg-[#0a0a0f]/70 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-yellow-500 rounded-lg flex items-center justify-center text-black font-bold shadow-[0_0_15px_rgba(234,179,8,0.7)]">G</div>
+            <span className="font-bold text-lg tracking-wide">GoldSignal</span>
+          </div>
+          <div className="text-xs text-gray-400 hidden md:block">{time.toUTCString()}</div>
+          <div className="flex items-center gap-4">
+            {currentPrice && (
+              <span className="text-yellow-400 font-bold text-sm drop-shadow-[0_0_6px_rgba(234,179,8,0.7)]">
+                {selectedPair} ${currentPrice}
+              </span>
+            )}
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-green-400 text-sm">Live</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Ticker */}
+        <div className="bg-[#0d0d14]/80 border-b border-white/10 py-1.5 overflow-hidden backdrop-blur-sm shrink-0">
+          <style>{`
+            @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-33.33%); } }
+            .ticker-track { display: flex; width: max-content; animation: ticker 45s linear infinite; }
+            .ticker-track:hover { animation-play-state: paused; }
+          `}</style>
+          <div className="ticker-track">
+            {allTickers.map((item, i) => (
+              <span key={i} className="flex items-center">
+                <span className={`text-xs px-5 whitespace-nowrap ${item.color}`}>{item.text}</span>
+                <span className="text-white/20">•</span>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Killzone Banner */}
+        {sessionInfo.killzone && (
+          <div className="mx-4 mt-2 rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-1.5 flex items-center gap-3 backdrop-blur-sm shrink-0">
+            <span className="text-orange-400 animate-pulse">🎯</span>
+            <span className="text-orange-300 font-semibold text-xs">{sessionInfo.killzone} is ACTIVE — High probability zone</span>
+            <span className={`ml-auto text-xs font-medium ${sessionInfo.sessionColor}`}>{sessionInfo.session} Session</span>
+          </div>
+        )}
+
+        {/* Main Layout */}
+        <div className="flex flex-1 gap-4 p-4 overflow-hidden">
+
+          {/* LEFT */}
+          <div className="w-80 shrink-0 flex flex-col gap-4 overflow-y-auto">
+            <div className="bg-[#111118]/90 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
+
+              {/* Pair Selector */}
+              <p className="text-gray-400 text-xs uppercase tracking-wider mb-2">Pair</p>
+              <div className="flex gap-1.5 flex-wrap mb-4">
+                {PAIRS.map(pair => (
+                  <button key={pair} onClick={() => { setSelectedPair(pair); setSignal(null); setMessage(null); setError(null); }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      selectedPair === pair
+                        ? "bg-yellow-500 text-black shadow-[0_0_10px_rgba(234,179,8,0.5)]"
+                        : "bg-white/5 text-gray-400 hover:bg-white/10"
+                    }`}>{pair}</button>
+                ))}
+              </div>
+
+              {/* Timeframe */}
+              <p className="text-gray-400 text-xs uppercase tracking-wider mb-2">Timeframe</p>
+              <div className="flex gap-1.5 flex-wrap mb-4">
+                {TIMEFRAMES.map(tf => (
+                  <button key={tf} onClick={() => setSelectedTF(tf)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      selectedTF === tf
+                        ? "bg-yellow-500 text-black shadow-[0_0_10px_rgba(234,179,8,0.5)]"
+                        : "bg-white/5 text-gray-400 hover:bg-white/10"
+                    }`}>{tf}</button>
+                ))}
+              </div>
+
+              {/* RR */}
+              <p className="text-gray-400 text-xs uppercase tracking-wider mb-2">Risk : Reward</p>
+              <div className="flex gap-1.5 flex-wrap mb-4">
+                {RR_OPTIONS.map(rr => (
+                  <button key={rr} onClick={() => setSelectedRR(rr)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      selectedRR === rr
+                        ? "bg-yellow-500 text-black shadow-[0_0_10px_rgba(234,179,8,0.5)]"
+                        : "bg-white/5 text-gray-400 hover:bg-white/10"
+                    }`}>{rr}</button>
+                ))}
+              </div>
+
+              <button onClick={analyse} disabled={loading}
+                className="w-full bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 text-black font-bold py-2.5 rounded-xl text-sm transition-all shadow-[0_0_20px_rgba(234,179,8,0.3)]">
+                {loading ? "Analysing..." : `⚡ Analyse ${selectedPair}`}
+              </button>
+            </div>
+
+            {message && (
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-3 text-blue-300 text-xs backdrop-blur-sm">
+                📊 {message}
+              </div>
+            )}
+
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-3 text-red-400 text-xs backdrop-blur-sm">
+                ⚠️ {error}
+              </div>
+            )}
+
+            {signal && (
+              <div className="bg-[#111118]/90 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden">
+                <div className="flex items-center justify-between p-4 border-b border-white/10">
+                  <div>
+                    <p className="text-gray-400 text-xs mb-0.5">SMC • {signal.timeframe}</p>
+                    <p className="text-base font-bold">{signal.pair}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-xs text-gray-400">Conf: <span className="text-white font-bold">{signal.confidence}%</span></span>
+                    <span className={`px-3 py-1 rounded-lg font-bold text-xs ${
+                      signal.direction === "BUY"
+                        ? "bg-green-500/20 text-green-400 border border-green-500/30 shadow-[0_0_10px_rgba(74,222,128,0.4)]"
+                        : "bg-red-500/20 text-red-400 border border-red-500/30 shadow-[0_0_10px_rgba(248,113,113,0.4)]"
+                    }`}>{signal.direction}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-px bg-white/5 border-b border-white/10">
+                  <div className="bg-[#111118] p-3 text-center">
+                    <p className="text-gray-500 text-xs mb-1">Entry</p>
+                    <p className="text-yellow-400 font-bold drop-shadow-[0_0_6px_rgba(234,179,8,0.8)] text-sm">{signal.entry}</p>
+                  </div>
+                  <div className="bg-[#111118] p-3 text-center">
+                    <p className="text-gray-500 text-xs mb-1">TP</p>
+                    <p className="text-green-400 font-bold drop-shadow-[0_0_6px_rgba(74,222,128,0.8)] text-sm">{signal.takeProfit}</p>
+                  </div>
+                  <div className="bg-[#111118] p-3 text-center">
+                    <p className="text-gray-500 text-xs mb-1">SL</p>
+                    <p className="text-red-400 font-bold drop-shadow-[0_0_6px_rgba(248,113,113,0.8)] text-sm">{signal.stopLoss}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 p-3 border-b border-white/10">
+                  <div className="bg-white/5 rounded-lg p-2">
+                    <p className="text-gray-500 text-xs mb-0.5">15m Bias</p>
+                    <p className={`text-xs font-medium ${signal.trend?.includes("Bullish") ? "text-green-400" : "text-red-400"}`}>{signal.trend}</p>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-2">
+                    <p className="text-gray-500 text-xs mb-0.5">R:R</p>
+                    <p className="text-yellow-400 text-xs font-medium">{signal.rr}</p>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-2">
+                    <p className="text-gray-500 text-xs mb-0.5">15m RSI</p>
+                    <p className="text-white text-xs font-medium">{signal.htfRSI}</p>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-2">
+                    <p className="text-gray-500 text-xs mb-0.5">5m RSI</p>
+                    <p className="text-white text-xs font-medium">{signal.ltfRSI}</p>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-2">
+                    <p className="text-gray-500 text-xs mb-0.5">EMA 50</p>
+                    <p className="text-white text-xs font-medium">{signal.ema50 || "N/A"}</p>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-2">
+                    <p className="text-gray-500 text-xs mb-0.5">EMA OK</p>
+                    <p className={`text-xs font-medium ${signal.emaConfirmed ? "text-green-400" : "text-red-400"}`}>{signal.emaConfirmed ? "✓ Yes" : "✗ No"}</p>
+                  </div>
+                </div>
+
+                <div className="p-3 border-b border-white/10">
+                  <p className="text-gray-500 text-xs mb-1.5">Entry Reasons</p>
+                  <div className="flex flex-wrap gap-1">
+                    {signal.reasons?.split(", ").map((reason, i) => (
+                      <span key={i} className="bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-0.5 rounded-full text-xs">{reason}</span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-3">
+                  <p className="text-gray-500 text-xs mb-1.5">⚡ AI Analysis</p>
+                  <p className="text-gray-300 text-xs leading-relaxed">{signal.analysis}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT — Chart */}
+          <div className="flex-1 min-w-0">
+            <Chart signal={signal} interval={selectedTF} />
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
