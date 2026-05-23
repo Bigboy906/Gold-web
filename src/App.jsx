@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
 import Chart from "./Chart";
+import PositionSize from "./PositionSize";
+import SignalHistory from "./SignalHistory";
+import NewsFilter from "./NewsFilter";
 
 const TIMEFRAMES = ["5m", "15m", "30m", "1H", "4H"];
 const RR_OPTIONS = ["1:1.5", "1:2", "1:3", "1:3.5"];
@@ -125,7 +128,13 @@ export default function App() {
       const data = await res.json();
       if (data.error) setError(data.error);
       else if (data.message) setMessage(data.message);
-      else setSignal(data);
+      else {
+        setSignal(data);
+        const saved = localStorage.getItem("signalHistory");
+        const history = saved ? JSON.parse(saved) : [];
+        history.push(data);
+        localStorage.setItem("signalHistory", JSON.stringify(history));
+      }
     } catch (err) {
       setError("Failed to connect to server");
     } finally {
@@ -206,8 +215,9 @@ export default function App() {
 
           {/* LEFT */}
           <div className="w-80 shrink-0 flex flex-col gap-3 overflow-y-auto">
-            <div className="bg-[#111118]/80 backdrop-blur-md rounded-2xl p-4 border border-white/15 shadow-[0_0_30px_rgba(0,0,0,0.5)]">
 
+            {/* Controls */}
+            <div className="bg-[#111118]/80 backdrop-blur-md rounded-2xl p-4 border border-white/15 shadow-[0_0_30px_rgba(0,0,0,0.5)]">
               <p className="text-gray-300 text-xs uppercase tracking-wider mb-2 font-semibold">Pair</p>
               <div className="flex gap-1.5 flex-wrap mb-4">
                 {PAIRS.map(pair => (
@@ -250,22 +260,26 @@ export default function App() {
               </button>
             </div>
 
+            {/* News Filter */}
+            <NewsFilter />
+
+            {/* Message */}
             {message && (
               <div className="bg-blue-500/15 border border-blue-500/40 rounded-2xl p-3 text-blue-300 text-xs backdrop-blur-sm">
                 📊 {message}
               </div>
             )}
 
+            {/* Error */}
             {error && (
               <div className="bg-red-500/15 border border-red-500/40 rounded-2xl p-3 text-red-300 text-xs backdrop-blur-sm">
                 ⚠️ {error}
               </div>
             )}
 
+            {/* Signal Card */}
             {signal && (
               <div className="bg-[#111118]/80 backdrop-blur-md rounded-2xl border border-white/15 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.5)]">
-
-                {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b border-white/10">
                   <div>
                     <p className="text-gray-400 text-xs mb-0.5">SMC • {signal.timeframe}</p>
@@ -281,7 +295,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Price levels */}
                 <div className="grid grid-cols-3 gap-px bg-white/5 border-b border-white/10">
                   <div className="bg-[#111118]/80 p-3 text-center">
                     <p className="text-gray-400 text-xs mb-1">Entry</p>
@@ -297,7 +310,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Indicators */}
                 <div className="grid grid-cols-2 gap-2 p-3 border-b border-white/10">
                   {[
                     { label: "15m Bias", value: signal.trend, color: signal.trend?.includes("Bullish") ? "text-green-400" : "text-red-400" },
@@ -314,7 +326,6 @@ export default function App() {
                   ))}
                 </div>
 
-                {/* Entry Reasons */}
                 <div className="p-3 border-b border-white/10">
                   <p className="text-gray-400 text-xs mb-1.5">Entry Signals</p>
                   <div className="flex flex-wrap gap-1">
@@ -324,7 +335,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Extra Confluence */}
                 <div className="p-3 border-b border-white/10">
                   <p className="text-gray-400 text-xs mb-1.5">Extra Confluence</p>
                   <div className="flex flex-wrap gap-1">
@@ -339,13 +349,19 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Analysis */}
                 <div className="p-3">
                   <p className="text-gray-400 text-xs mb-1.5">⚡ AI Analysis</p>
                   <p className="text-gray-200 text-xs leading-relaxed">{signal.analysis}</p>
                 </div>
               </div>
             )}
+
+            {/* Position Size Calculator */}
+            <PositionSize signal={signal} />
+
+            {/* Signal History */}
+            <SignalHistory />
+
           </div>
 
           {/* RIGHT — Chart */}
