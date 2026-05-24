@@ -156,45 +156,39 @@ export default function App() {
   const currentPrice = prices[selectedPair];
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white font-sans relative">
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "#0a0a0f", color: "white", fontFamily: "sans-serif", position: "relative" }}>
       <CandlestickBackground />
 
-      <div className="relative z-10 flex flex-col h-screen">
+      <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", height: "100%" }}>
+
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-white/10 backdrop-blur-md bg-[#0a0a0f]/60 shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-500 rounded-lg flex items-center justify-center text-black font-bold shadow-[0_0_20px_rgba(234,179,8,0.9)]">G</div>
-            <span className="font-bold text-lg tracking-wide">GoldSignal</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 24px", borderBottom: "1px solid rgba(255,255,255,0.1)", background: "rgba(10,10,15,0.7)", backdropFilter: "blur(12px)", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ width: 32, height: 32, background: "#f59e0b", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", color: "black", boxShadow: "0 0 20px rgba(234,179,8,0.9)" }}>G</div>
+            <span style={{ fontWeight: "bold", fontSize: 18 }}>GoldSignal</span>
           </div>
-          <div className="text-xs text-gray-300 hidden md:block">{time.toUTCString()}</div>
-          <div className="flex items-center gap-4">
-            {currentPrice && (
-              <span className="text-yellow-400 font-bold text-sm drop-shadow-[0_0_8px_rgba(234,179,8,0.9)]">
-                {selectedPair} ${currentPrice}
-              </span>
-            )}
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_6px_rgba(34,197,94,0.8)]"></div>
-              <span className="text-green-400 text-sm">Live</span>
+          <div style={{ fontSize: 12, color: "#9ca3af" }}>{time.toUTCString()}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {currentPrice && <span style={{ color: "#f59e0b", fontWeight: "bold", fontSize: 14 }}>{selectedPair} ${currentPrice}</span>}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ width: 8, height: 8, background: "#22c55e", borderRadius: "50%", animation: "pulse 2s infinite" }}></div>
+              <span style={{ color: "#22c55e", fontSize: 14 }}>Live</span>
             </div>
           </div>
         </div>
 
         {/* Ticker */}
-        <div className="bg-[#0d0d14]/70 border-b border-white/10 py-1.5 overflow-hidden backdrop-blur-sm shrink-0">
+        <div style={{ background: "rgba(13,13,20,0.8)", borderBottom: "1px solid rgba(255,255,255,0.1)", padding: "6px 0", overflow: "hidden", flexShrink: 0 }}>
           <style>{`
             @keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-33.33%)}}
             .ticker-track{display:flex;width:max-content;animation:ticker 50s linear infinite}
             .ticker-track:hover{animation-play-state:paused}
-            .left-scroll::-webkit-scrollbar{width:3px}
-            .left-scroll::-webkit-scrollbar-track{background:transparent}
-            .left-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
           `}</style>
           <div className="ticker-track">
             {allTickers.map((item, i) => (
-              <span key={i} className="flex items-center">
-                <span className={`text-xs px-5 whitespace-nowrap ${item.color}`}>{item.text}</span>
-                <span className="text-white/30">•</span>
+              <span key={i} style={{ display: "flex", alignItems: "center" }}>
+                <span className={item.color} style={{ fontSize: 12, padding: "0 20px", whiteSpace: "nowrap" }}>{item.text}</span>
+                <span style={{ color: "rgba(255,255,255,0.2)" }}>•</span>
               </span>
             ))}
           </div>
@@ -202,194 +196,183 @@ export default function App() {
 
         {/* Killzone Banner */}
         {sessionInfo.killzone && (
-          <div className="mx-4 mt-2 rounded-xl border border-orange-500/40 bg-orange-500/15 px-4 py-1.5 flex items-center gap-3 backdrop-blur-sm shrink-0">
-            <span className="text-orange-400 animate-pulse">🎯</span>
-            <span className="text-orange-300 font-semibold text-xs">{sessionInfo.killzone} is ACTIVE — High probability zone</span>
-            <span className={`ml-auto text-xs font-medium ${sessionInfo.sessionColor}`}>{sessionInfo.session} Session</span>
+          <div style={{ margin: "8px 16px 0", borderRadius: 12, border: "1px solid rgba(249,115,22,0.4)", background: "rgba(249,115,22,0.1)", padding: "6px 16px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+            <span style={{ color: "#fb923c" }}>🎯</span>
+            <span style={{ color: "#fdba74", fontWeight: 600, fontSize: 12 }}>{sessionInfo.killzone} is ACTIVE — High probability zone</span>
+            <span className={sessionInfo.sessionColor} style={{ marginLeft: "auto", fontSize: 12 }}>{sessionInfo.session} Session</span>
           </div>
         )}
 
-        {/* Main Layout — Desktop: side by side, Mobile: stacked */}
-        <div className="flex flex-1 overflow-hidden">
+        {/* Main content */}
+        <div style={{ display: "flex", flex: 1, overflow: "hidden", padding: "12px", gap: "12px" }}>
 
-          {/* LEFT PANEL */}
-          <div
-            className="left-scroll shrink-0 flex flex-col gap-3 p-4"
-            style={{
-              width: "320px",
-              overflowY: "auto",
-              overflowX: "hidden",
-              scrollbarWidth: "thin",
-              scrollbarColor: "rgba(255,255,255,0.1) transparent",
-            }}
-          >
+          {/* LEFT PANEL - scrollable */}
+          <div style={{
+            width: "320px",
+            flexShrink: 0,
+            height: "100%",
+            overflowY: "scroll",
+            overflowX: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+            scrollbarWidth: "thin",
+            scrollbarColor: "rgba(255,255,255,0.15) transparent",
+            paddingRight: "4px",
+          }}>
+
             {/* Controls */}
-            <div className="bg-[#111118]/80 backdrop-blur-md rounded-2xl p-4 border border-white/15">
-              <p className="text-gray-300 text-xs uppercase tracking-wider mb-2 font-semibold">Pair</p>
-              <div className="flex gap-1.5 flex-wrap mb-3">
+            <div style={{ background: "rgba(17,17,24,0.9)", borderRadius: 16, padding: 16, border: "1px solid rgba(255,255,255,0.15)" }}>
+              <p style={{ color: "#9ca3af", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Pair</p>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
                 {PAIRS.map(pair => (
                   <button key={pair} onClick={() => { setSelectedPair(pair); setSignal(null); setMessage(null); setError(null); }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                      selectedPair === pair ? "bg-yellow-500 text-black shadow-[0_0_12px_rgba(234,179,8,0.7)]" : "bg-white/10 text-gray-300 border border-white/10"
-                    }`}>{pair}</button>
+                    style={{ padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: "pointer", border: selectedPair === pair ? "none" : "1px solid rgba(255,255,255,0.1)", background: selectedPair === pair ? "#f59e0b" : "rgba(255,255,255,0.08)", color: selectedPair === pair ? "black" : "#d1d5db", boxShadow: selectedPair === pair ? "0 0 12px rgba(234,179,8,0.7)" : "none" }}>
+                    {pair}
+                  </button>
                 ))}
               </div>
 
-              <p className="text-gray-300 text-xs uppercase tracking-wider mb-2 font-semibold">Timeframe</p>
-              <div className="flex gap-1.5 flex-wrap mb-3">
+              <p style={{ color: "#9ca3af", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Timeframe</p>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
                 {TIMEFRAMES.map(tf => (
                   <button key={tf} onClick={() => setSelectedTF(tf)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                      selectedTF === tf ? "bg-yellow-500 text-black shadow-[0_0_12px_rgba(234,179,8,0.7)]" : "bg-white/10 text-gray-300 border border-white/10"
-                    }`}>{tf}</button>
+                    style={{ padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: "pointer", border: selectedTF === tf ? "none" : "1px solid rgba(255,255,255,0.1)", background: selectedTF === tf ? "#f59e0b" : "rgba(255,255,255,0.08)", color: selectedTF === tf ? "black" : "#d1d5db", boxShadow: selectedTF === tf ? "0 0 12px rgba(234,179,8,0.7)" : "none" }}>
+                    {tf}
+                  </button>
                 ))}
               </div>
 
-              <p className="text-gray-300 text-xs uppercase tracking-wider mb-2 font-semibold">Risk : Reward</p>
-              <div className="flex gap-1.5 flex-wrap mb-3">
+              <p style={{ color: "#9ca3af", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Risk : Reward</p>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
                 {RR_OPTIONS.map(rr => (
                   <button key={rr} onClick={() => setSelectedRR(rr)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                      selectedRR === rr ? "bg-yellow-500 text-black shadow-[0_0_12px_rgba(234,179,8,0.7)]" : "bg-white/10 text-gray-300 border border-white/10"
-                    }`}>{rr}</button>
+                    style={{ padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: "pointer", border: selectedRR === rr ? "none" : "1px solid rgba(255,255,255,0.1)", background: selectedRR === rr ? "#f59e0b" : "rgba(255,255,255,0.08)", color: selectedRR === rr ? "black" : "#d1d5db", boxShadow: selectedRR === rr ? "0 0 12px rgba(234,179,8,0.7)" : "none" }}>
+                    {rr}
+                  </button>
                 ))}
               </div>
 
               <button onClick={analyse} disabled={loading}
-                className="w-full bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 text-black font-bold py-2.5 rounded-xl text-sm transition-all shadow-[0_0_25px_rgba(234,179,8,0.5)]">
+                style={{ width: "100%", background: loading ? "rgba(245,158,11,0.5)" : "#f59e0b", color: "black", fontWeight: "bold", padding: "10px", borderRadius: 12, fontSize: 14, cursor: loading ? "not-allowed" : "pointer", border: "none", boxShadow: "0 0 25px rgba(234,179,8,0.5)" }}>
                 {loading ? "Analysing..." : `⚡ Analyse ${selectedPair}`}
               </button>
             </div>
 
-            {/* News Filter */}
             <NewsFilter />
-
-            {/* Multi Timeframe */}
             <MultiTimeframe pair={selectedPair} />
-
-            {/* Sentiment */}
             <Sentiment pair={selectedPair} />
 
-            {/* Message */}
             {message && (
-              <div className="bg-blue-500/15 border border-blue-500/40 rounded-2xl p-3 text-blue-300 text-xs">
+              <div style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.4)", borderRadius: 16, padding: 12, color: "#93c5fd", fontSize: 12 }}>
                 📊 {message}
               </div>
             )}
 
-            {/* Error */}
             {error && (
-              <div className="bg-red-500/15 border border-red-500/40 rounded-2xl p-3 text-red-300 text-xs">
+              <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 16, padding: 12, color: "#fca5a5", fontSize: 12 }}>
                 ⚠️ {error}
               </div>
             )}
 
-            {/* Signal Card */}
             {signal && (
-              <div className="bg-[#111118]/80 backdrop-blur-md rounded-2xl border border-white/15 overflow-hidden">
-                <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <div style={{ background: "rgba(17,17,24,0.9)", borderRadius: 16, border: "1px solid rgba(255,255,255,0.15)", overflow: "hidden" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
                   <div>
-                    <p className="text-gray-400 text-xs mb-0.5">SMC • {signal.timeframe}</p>
-                    <p className="text-base font-bold">{signal.pair}</p>
+                    <p style={{ color: "#9ca3af", fontSize: 10, marginBottom: 2 }}>SMC • {signal.timeframe}</p>
+                    <p style={{ fontWeight: "bold", fontSize: 16 }}>{signal.pair}</p>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-xs text-gray-300">Conf: <span className="text-white font-bold">{signal.confidence}%</span></span>
-                    <span className={`px-3 py-1 rounded-lg font-bold text-xs ${
-                      signal.direction === "BUY"
-                        ? "bg-green-500/20 text-green-400 border border-green-500/40 shadow-[0_0_12px_rgba(74,222,128,0.5)]"
-                        : "bg-red-500/20 text-red-400 border border-red-500/40 shadow-[0_0_12px_rgba(248,113,113,0.5)]"
-                    }`}>{signal.direction}</span>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                    <span style={{ fontSize: 11, color: "#9ca3af" }}>Conf: <strong style={{ color: "white" }}>{signal.confidence}%</strong></span>
+                    <span style={{ padding: "4px 12px", borderRadius: 8, fontWeight: "bold", fontSize: 12, background: signal.direction === "BUY" ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)", color: signal.direction === "BUY" ? "#4ade80" : "#f87171", border: signal.direction === "BUY" ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(239,68,68,0.4)", boxShadow: signal.direction === "BUY" ? "0 0 12px rgba(74,222,128,0.5)" : "0 0 12px rgba(248,113,113,0.5)" }}>
+                      {signal.direction}
+                    </span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-px bg-white/5 border-b border-white/10">
-                  <div className="bg-[#111118]/80 p-3 text-center">
-                    <p className="text-gray-400 text-xs mb-1">Entry</p>
-                    <p className="text-yellow-400 font-bold drop-shadow-[0_0_8px_rgba(234,179,8,1)] text-sm">{signal.entry}</p>
-                  </div>
-                  <div className="bg-[#111118]/80 p-3 text-center">
-                    <p className="text-gray-400 text-xs mb-1">TP</p>
-                    <p className="text-green-400 font-bold drop-shadow-[0_0_8px_rgba(74,222,128,1)] text-sm">{signal.takeProfit}</p>
-                  </div>
-                  <div className="bg-[#111118]/80 p-3 text-center">
-                    <p className="text-gray-400 text-xs mb-1">SL</p>
-                    <p className="text-red-400 font-bold drop-shadow-[0_0_8px_rgba(248,113,113,1)] text-sm">{signal.stopLoss}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 p-3 border-b border-white/10">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
                   {[
-                    { label: "15m Bias", value: signal.trend, color: signal.trend?.includes("Bullish") ? "text-green-400" : "text-red-400" },
-                    { label: "R:R", value: signal.rr, color: "text-yellow-400" },
-                    { label: "15m RSI", value: signal.htfRSI, color: "text-white" },
-                    { label: "5m RSI", value: signal.ltfRSI, color: "text-white" },
-                    { label: "EMA 50", value: signal.ema50 || "N/A", color: "text-white" },
-                    { label: "EMA OK", value: signal.emaConfirmed ? "✓ Yes" : "✗ No", color: signal.emaConfirmed ? "text-green-400" : "text-red-400" },
+                    { label: "Entry", value: signal.entry, color: "#f59e0b" },
+                    { label: "TP", value: signal.takeProfit, color: "#4ade80" },
+                    { label: "SL", value: signal.stopLoss, color: "#f87171" },
                   ].map((item, i) => (
-                    <div key={i} className="bg-white/5 rounded-lg p-2 border border-white/10">
-                      <p className="text-gray-400 text-xs mb-0.5">{item.label}</p>
-                      <p className={`text-xs font-medium ${item.color}`}>{item.value}</p>
+                    <div key={i} style={{ padding: 12, textAlign: "center", borderRight: i < 2 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
+                      <p style={{ color: "#6b7280", fontSize: 10, marginBottom: 4 }}>{item.label}</p>
+                      <p style={{ color: item.color, fontWeight: "bold", fontSize: 13 }}>{item.value}</p>
                     </div>
                   ))}
                 </div>
 
-                <div className="p-3 border-b border-white/10">
-                  <p className="text-gray-400 text-xs mb-1.5">Entry Signals</p>
-                  <div className="flex flex-wrap gap-1">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: 12, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                  {[
+                    { label: "15m Bias", value: signal.trend, color: signal.trend?.includes("Bullish") ? "#4ade80" : "#f87171" },
+                    { label: "R:R", value: signal.rr, color: "#f59e0b" },
+                    { label: "15m RSI", value: signal.htfRSI, color: "white" },
+                    { label: "5m RSI", value: signal.ltfRSI, color: "white" },
+                    { label: "EMA 50", value: signal.ema50 || "N/A", color: "white" },
+                    { label: "EMA OK", value: signal.emaConfirmed ? "✓ Yes" : "✗ No", color: signal.emaConfirmed ? "#4ade80" : "#f87171" },
+                  ].map((item, i) => (
+                    <div key={i} style={{ background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: 8, border: "1px solid rgba(255,255,255,0.08)" }}>
+                      <p style={{ color: "#6b7280", fontSize: 10, marginBottom: 2 }}>{item.label}</p>
+                      <p style={{ color: item.color, fontSize: 11, fontWeight: 500 }}>{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ padding: 12, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                  <p style={{ color: "#6b7280", fontSize: 10, marginBottom: 6 }}>Entry Signals</p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                     {signal.reasons?.split(", ").map((reason, i) => (
-                      <Tag key={i} text={reason} color="bg-yellow-500/10 text-yellow-300 border-yellow-500/30" />
+                      <span key={i} style={{ padding: "2px 8px", borderRadius: 20, fontSize: 10, background: "rgba(245,158,11,0.1)", color: "#fcd34d", border: "1px solid rgba(245,158,11,0.3)" }}>{reason}</span>
                     ))}
                   </div>
                 </div>
 
-                <div className="p-3 border-b border-white/10">
-                  <p className="text-gray-400 text-xs mb-1.5">Extra Confluence</p>
-                  <div className="flex flex-wrap gap-1">
-                    {signal.mss && <Tag text={signal.mss} color="bg-purple-500/10 text-purple-300 border-purple-500/30" />}
-                    {signal.idm && <Tag text={signal.idm} color="bg-blue-500/10 text-blue-300 border-blue-500/30" />}
-                    {signal.breaker && <Tag text={signal.breaker} color="bg-pink-500/10 text-pink-300 border-pink-500/30" />}
-                    {signal.supplyDemand && <Tag text={signal.supplyDemand} color="bg-orange-500/10 text-orange-300 border-orange-500/30" />}
-                    {signal.equalLevels && <Tag text={signal.equalLevels} color="bg-red-500/10 text-red-300 border-red-500/30" />}
+                <div style={{ padding: 12, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                  <p style={{ color: "#6b7280", fontSize: 10, marginBottom: 6 }}>Extra Confluence</p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {signal.mss && <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 10, background: "rgba(168,85,247,0.1)", color: "#c4b5fd", border: "1px solid rgba(168,85,247,0.3)" }}>{signal.mss}</span>}
+                    {signal.idm && <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 10, background: "rgba(59,130,246,0.1)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.3)" }}>{signal.idm}</span>}
+                    {signal.breaker && <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 10, background: "rgba(236,72,153,0.1)", color: "#f9a8d4", border: "1px solid rgba(236,72,153,0.3)" }}>{signal.breaker}</span>}
+                    {signal.supplyDemand && <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 10, background: "rgba(249,115,22,0.1)", color: "#fdba74", border: "1px solid rgba(249,115,22,0.3)" }}>{signal.supplyDemand}</span>}
+                    {signal.equalLevels && <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 10, background: "rgba(239,68,68,0.1)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }}>{signal.equalLevels}</span>}
                     {!signal.mss && !signal.idm && !signal.breaker && !signal.supplyDemand && !signal.equalLevels && (
-                      <span className="text-gray-500 text-xs">None detected</span>
+                      <span style={{ color: "#6b7280", fontSize: 11 }}>None detected</span>
                     )}
                   </div>
                 </div>
 
                 {signal.orderflow && (
-                  <div className="p-3 border-b border-white/10">
-                    <p className="text-gray-400 text-xs mb-2">Orderflow (CVD)</p>
-                    <div className="flex h-2 rounded-full overflow-hidden mb-1.5">
-                      <div className="bg-green-500" style={{ width: `${signal.orderflow.buyPct}%` }} />
-                      <div className="bg-red-500" style={{ width: `${signal.orderflow.sellPct}%` }} />
+                  <div style={{ padding: 12, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                    <p style={{ color: "#6b7280", fontSize: 10, marginBottom: 8 }}>Orderflow (CVD)</p>
+                    <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 6 }}>
+                      <div style={{ background: "#22c55e", width: `${signal.orderflow.buyPct}%` }} />
+                      <div style={{ background: "#ef4444", width: `${signal.orderflow.sellPct}%` }} />
                     </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-green-400">Buy: {signal.orderflow.buyPct}%</span>
-                      <span className={`font-medium ${signal.orderflow.trend === "positive" ? "text-green-400" : "text-red-400"}`}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                      <span style={{ color: "#4ade80" }}>Buy: {signal.orderflow.buyPct}%</span>
+                      <span style={{ color: signal.orderflow.trend === "positive" ? "#4ade80" : "#f87171" }}>
                         {signal.orderflow.trend === "positive" ? "▲" : "▼"} {signal.orderflow.cvd} CVD
                       </span>
-                      <span className="text-red-400">Sell: {signal.orderflow.sellPct}%</span>
+                      <span style={{ color: "#f87171" }}>Sell: {signal.orderflow.sellPct}%</span>
                     </div>
                   </div>
                 )}
 
-                <div className="p-3">
-                  <p className="text-gray-400 text-xs mb-1.5">⚡ AI Analysis</p>
-                  <p className="text-gray-200 text-xs leading-relaxed">{signal.analysis}</p>
+                <div style={{ padding: 12 }}>
+                  <p style={{ color: "#6b7280", fontSize: 10, marginBottom: 6 }}>⚡ AI Analysis</p>
+                  <p style={{ color: "#e5e7eb", fontSize: 11, lineHeight: 1.6 }}>{signal.analysis}</p>
                 </div>
               </div>
             )}
 
-            {/* Position Size */}
             <PositionSize signal={signal} />
-
-            {/* Signal History */}
             <SignalHistory />
 
           </div>
 
           {/* RIGHT — Chart */}
-          <div className="flex-1 min-w-0 p-4 pl-0">
+          <div style={{ flex: 1, minWidth: 0 }}>
             <Chart signal={signal} interval={selectedTF} />
           </div>
 
