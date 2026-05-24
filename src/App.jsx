@@ -204,14 +204,15 @@ export default function App() {
         )}
 
         {/* Main content */}
-        <div style={{ display: "flex", flex: 1, overflow: "hidden", padding: "12px", gap: "12px" }}>
+        <div style={{ display: "flex", flex: 1, overflow: "auto", padding: "12px", gap: "12px" }}>
 
           {/* LEFT PANEL - scrollable */}
           <div style={{
             width: "320px",
             flexShrink: 0,
             height: "100%",
-            overflowY: "scroll",
+            overflowY: "auto",
+WebkitOverflowScrolling: "touch",
             overflowX: "hidden",
             display: "flex",
             flexDirection: "column",
