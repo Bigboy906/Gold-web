@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors");
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 require("dotenv").config();
 
 const app = express();
@@ -8,24 +8,9 @@ app.use(cors());
 app.use(express.json());
 
 const TWELVE_KEY = "865285eec7c449129e724b96f92c56d4";
+const resend = new Resend(process.env.RESEND_KEY);
 
 let latestSignal = null;
-
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: "samwelkimani659@gmail.com",
-    pass: process.env.GMAIL_PASS,
-  },
-});
-
-const transporter2 = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: "morenochristopher851@gmail.com",
-    pass: process.env.MORENO_PASS,
-  },
-});
 
 async function sendSignalEmail(signal) {
   const direction = signal.direction === "BUY" ? "🟢 BUY" : "🔴 SELL";
@@ -46,22 +31,18 @@ async function sendSignalEmail(signal) {
       <p style="color: #6b7280; font-size: 11px; margin-top: 16px;">Sent at ${new Date().toUTCString()}</p>
     </div>
   `;
+
   try {
-    await transporter.sendMail({
-      from: "samwelkimani659@gmail.com",
+    await resend.emails.send({
+      from: "GoldSignal <onboarding@resend.dev>",
       to: ["samwelkimani659@gmail.com", "morenochristopher851@gmail.com"],
       subject: `⚡ Signal: ${signal.direction} ${signal.pair} @ ${signal.entry}`,
       html,
     });
-  } catch (err) { console.error("Samwel email error:", err.message); }
-  try {
-    await transporter2.sendMail({
-      from: "morenochristopher851@gmail.com",
-      to: ["samwelkimani659@gmail.com", "morenochristopher851@gmail.com"],
-      subject: `⚡ Signal: ${signal.direction} ${signal.pair} @ ${signal.entry}`,
-      html,
-    });
-  } catch (err) { console.error("Moreno email error:", err.message); }
+    console.log("Email sent successfully");
+  } catch (err) {
+    console.error("Email error:", err.message);
+  }
 }
 
 async function fetchCandles(pair, interval, outputsize = 100) {
@@ -110,8 +91,7 @@ function calcATR(candles, period = 14) {
 function detectBOS(candles) {
   if (candles.length < 5) return null;
   const len = candles.length;
-  const prev = candles[len - 3];
-  const curr = candles[len - 1];
+  const prev = candles[len - 3], curr = candles[len - 1];
   if (curr.high > prev.high) return "Bullish BOS";
   if (curr.low < prev.low) return "Bearish BOS";
   return null;
@@ -132,8 +112,7 @@ function detectMSS(candles) {
   const recent = candles.slice(len - 8);
   const highestHigh = Math.max(...recent.slice(0, 5).map(c => c.high));
   const lowestLow = Math.min(...recent.slice(0, 5).map(c => c.low));
-  const last = recent[recent.length - 1];
-  const prev = recent[recent.length - 2];
+  const last = recent[recent.length - 1], prev = recent[recent.length - 2];
   if (prev.low < lowestLow && last.close > highestHigh) return "Bullish MSS";
   if (prev.high > highestHigh && last.close < lowestLow) return "Bearish MSS";
   return null;
@@ -287,7 +266,7 @@ function buildAnalysis(htfBias, matchingSignals, biasDirection, htfRSI, ltfRSI, 
   const emaText = emaFilter ? "EMA50 above EMA200 confirms the trend." : "EMA trend mixed but confluences are strong.";
   const rsiText = `15m RSI at ${htfRSI.toFixed(1)}, 5m RSI at ${ltfRSI.toFixed(1)}, supporting ${dir} momentum.`;
   const extraText = extraContext.length > 0 ? `Additional confluence: ${extraContext.join(", ")}.` : "";
-  const flowText = orderflow ? `Orderflow shows ${orderflow.buyPct}% buying pressure vs ${orderflow.sellPct}% selling pressure.` : "";
+  const flowText = orderflow ? `Orderflow shows ${orderflow.buyPct}% buying vs ${orderflow.sellPct}% selling pressure.` : "";
   return `${pair} shows ${htfBias} — ${dir} structure confirmed. ${rsiText} ${emaText} ${extraText} ${flowText} Detected on 5m: ${reasons}. Entry at ${entry.toFixed(2)}, SL at ${stopLoss.toFixed(2)}, TP at ${takeProfit.toFixed(2)} (${rr} R:R).`;
 }
 
@@ -324,8 +303,8 @@ app.get("/smc/:rr", async (req, res) => {
     const fvg = detectFVG(ltfCandles);
     const idm = detectIDM(ltfCandles);
     const breaker = detectBreakerBlock(ltfCandles);
-    const ltfSD = detectSupplyDemand(ltfCandles);
-    const ltfEHL = detectEqualHighsLows(ltfCandles);
+    const htfSDResult = htfSD;
+    const htfEHLResult = htfEHL;
     const orderflow = calcOrderflow(ltfCandles);
 
     const allSignals = [ob, sweep, engulfing, wick, fvg, idm, breaker].filter(Boolean);
@@ -333,10 +312,10 @@ app.get("/smc/:rr", async (req, res) => {
 
     const extraContext = [];
     if (mss) extraContext.push(mss);
-    if (htfSD?.demandZone && biasDirection === "BUY") extraContext.push("15m Demand Zone");
-    if (htfSD?.supplyZone && biasDirection === "SELL") extraContext.push("15m Supply Zone");
-    if (htfEHL?.equalLows && biasDirection === "BUY") extraContext.push("Equal Lows swept");
-    if (htfEHL?.equalHighs && biasDirection === "SELL") extraContext.push("Equal Highs swept");
+    if (htfSDResult?.demandZone && biasDirection === "BUY") extraContext.push("15m Demand Zone");
+    if (htfSDResult?.supplyZone && biasDirection === "SELL") extraContext.push("15m Supply Zone");
+    if (htfEHLResult?.equalLows && biasDirection === "BUY") extraContext.push("Equal Lows swept");
+    if (htfEHLResult?.equalHighs && biasDirection === "SELL") extraContext.push("Equal Highs swept");
 
     if (matchingSignals.length === 0) {
       return res.json({
@@ -394,10 +373,9 @@ app.get("/smc/:rr", async (req, res) => {
       mss: mss || null,
       idm: idm ? idm.type : null,
       breaker: breaker ? breaker.type : null,
-      supplyDemand: biasDirection === "BUY" ? (htfSD?.demandZone ? "15m Demand Zone" : null) : (htfSD?.supplyZone ? "15m Supply Zone" : null),
-      equalLevels: biasDirection === "BUY" ? (htfEHL?.equalLows ? "Equal Lows" : null) : (htfEHL?.equalHighs ? "Equal Highs" : null),
-      orderflow,
-      timeframe: "15m/5m", analysis,
+      supplyDemand: biasDirection === "BUY" ? (htfSDResult?.demandZone ? "15m Demand Zone" : null) : (htfSDResult?.supplyZone ? "15m Supply Zone" : null),
+      equalLevels: biasDirection === "BUY" ? (htfEHLResult?.equalLows ? "Equal Lows" : null) : (htfEHLResult?.equalHighs ? "Equal Highs" : null),
+      orderflow, timeframe: "15m/5m", analysis,
       timestamp: new Date().toISOString(),
     };
 
@@ -456,13 +434,10 @@ app.get("/sentiment/:pair", async (req, res) => {
     const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=10&apikey=free`;
     const r = await fetch(url);
     const data = await r.json();
-
     const bullishWords = ["rise", "rally", "surge", "bullish", "gain", "high", "up", "buy", "growth", "strong", "record", "soar"];
     const bearishWords = ["fall", "drop", "crash", "bearish", "loss", "low", "down", "sell", "weak", "decline", "plunge", "tumble"];
-
     let bullScore = 0, bearScore = 0;
     const headlines = [];
-
     const articles = data.articles || [];
     articles.slice(0, 10).forEach(article => {
       const title = article.title?.toLowerCase() || "";
@@ -470,11 +445,9 @@ app.get("/sentiment/:pair", async (req, res) => {
       bullishWords.forEach(w => { if (title.includes(w)) bullScore++; });
       bearishWords.forEach(w => { if (title.includes(w)) bearScore++; });
     });
-
     const total = bullScore + bearScore || 1;
     const sentiment = bullScore > bearScore ? "Bullish" : bearScore > bullScore ? "Bearish" : "Neutral";
     const sentimentScore = Math.round((Math.max(bullScore, bearScore) / total) * 100);
-
     res.json({ pair, sentiment, sentimentScore, bullScore, bearScore, headlines: headlines.slice(0, 5) });
   } catch (err) {
     res.json({ sentiment: "Neutral", sentimentScore: 50, headlines: [], error: err.message });
