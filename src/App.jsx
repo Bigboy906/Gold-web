@@ -3,6 +3,8 @@ import Chart from "./Chart";
 import PositionSize from "./PositionSize";
 import SignalHistory from "./SignalHistory";
 import NewsFilter from "./NewsFilter";
+import MultiTimeframe from "./MultiTimeframe";
+import Sentiment from "./Sentiment";
 
 const TIMEFRAMES = ["5m", "15m", "30m", "1H", "4H"];
 const RR_OPTIONS = ["1:1.5", "1:2", "1:3", "1:3.5"];
@@ -263,6 +265,12 @@ export default function App() {
             {/* News Filter */}
             <NewsFilter />
 
+            {/* Multi Timeframe */}
+            <MultiTimeframe pair={selectedPair} />
+
+            {/* Sentiment */}
+            <Sentiment pair={selectedPair} />
+
             {/* Message */}
             {message && (
               <div className="bg-blue-500/15 border border-blue-500/40 rounded-2xl p-3 text-blue-300 text-xs backdrop-blur-sm">
@@ -348,6 +356,24 @@ export default function App() {
                     )}
                   </div>
                 </div>
+
+                {/* Orderflow */}
+                {signal.orderflow && (
+                  <div className="p-3 border-b border-white/10">
+                    <p className="text-gray-400 text-xs mb-2">Orderflow (CVD)</p>
+                    <div className="flex h-2 rounded-full overflow-hidden mb-1.5">
+                      <div className="bg-green-500" style={{ width: `${signal.orderflow.buyPct}%` }} />
+                      <div className="bg-red-500" style={{ width: `${signal.orderflow.sellPct}%` }} />
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-green-400">Buy: {signal.orderflow.buyPct}%</span>
+                      <span className={`font-medium ${signal.orderflow.trend === "positive" ? "text-green-400" : "text-red-400"}`}>
+                        {signal.orderflow.trend === "positive" ? "▲" : "▼"} {signal.orderflow.cvd} CVD
+                      </span>
+                      <span className="text-red-400">Sell: {signal.orderflow.sellPct}%</span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="p-3">
                   <p className="text-gray-400 text-xs mb-1.5">⚡ AI Analysis</p>
