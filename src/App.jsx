@@ -192,6 +192,9 @@ export default function App() {
             @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-33.33%); } }
             .ticker-track { display: flex; width: max-content; animation: ticker 50s linear infinite; }
             .ticker-track:hover { animation-play-state: paused; }
+            .left-panel::-webkit-scrollbar { width: 4px; }
+            .left-panel::-webkit-scrollbar-track { background: transparent; }
+            .left-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
           `}</style>
           <div className="ticker-track">
             {allTickers.map((item, i) => (
@@ -215,8 +218,18 @@ export default function App() {
         {/* Main Layout */}
         <div className="flex flex-1 gap-4 p-4 overflow-hidden">
 
-          {/* LEFT */}
-          <div className="w-80 shrink-0 flex flex-col gap-3 overflow-y-auto">
+          {/* LEFT — scrollable panel */}
+          <div
+            className="left-panel w-80 shrink-0 flex flex-col gap-3"
+            style={{
+              overflowY: "auto",
+              overflowX: "hidden",
+              height: "100%",
+              scrollbarWidth: "thin",
+              scrollbarColor: "rgba(255,255,255,0.1) transparent",
+              paddingRight: "4px",
+            }}
+          >
 
             {/* Controls */}
             <div className="bg-[#111118]/80 backdrop-blur-md rounded-2xl p-4 border border-white/15 shadow-[0_0_30px_rgba(0,0,0,0.5)]">
@@ -357,7 +370,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Orderflow */}
                 {signal.orderflow && (
                   <div className="p-3 border-b border-white/10">
                     <p className="text-gray-400 text-xs mb-2">Orderflow (CVD)</p>
