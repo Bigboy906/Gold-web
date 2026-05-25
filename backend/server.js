@@ -35,7 +35,7 @@ async function sendSignalEmail(signal) {
   try {
     await resend.emails.send({
       from: "GoldSignal <onboarding@resend.dev>",
-      to: ["samwelkimani659@gmail.com", "morenochristopher851@gmail.com"],
+      to: ["samwelkimani659@gmail.com"],
       subject: `⚡ Signal: ${signal.direction} ${signal.pair} @ ${signal.entry}`,
       html,
     });
