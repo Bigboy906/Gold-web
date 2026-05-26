@@ -336,14 +336,18 @@ export default function App() {
                   <div className="p-4 border-b border-white/10">
                     <p className="text-gray-400 text-xs mb-2">Extra Confluence</p>
                     <div className="flex flex-wrap gap-1.5">
-                      {signal.mss && <Tag text={signal.mss} color="bg-purple-500/10 text-purple-300 border-purple-500/30" />}
-                      {signal.idm && <Tag text={signal.idm} color="bg-blue-500/10 text-blue-300 border-blue-500/30" />}
-                      {signal.breaker && <Tag text={signal.breaker} color="bg-pink-500/10 text-pink-300 border-pink-500/30" />}
-                      {signal.supplyDemand && <Tag text={signal.supplyDemand} color="bg-orange-500/10 text-orange-300 border-orange-500/30" />}
-                      {signal.equalLevels && <Tag text={signal.equalLevels} color="bg-red-500/10 text-red-300 border-red-500/30" />}
-                      {!signal.mss && !signal.idm && !signal.breaker && !signal.supplyDemand && !signal.equalLevels && (
-                        <span className="text-gray-500 text-xs">None detected</span>
-                      )}
+                      {signal.dominantTrend && <Tag text={`Dominant: ${signal.dominantTrend}`} color="bg-cyan-500/10 text-cyan-300 border-cyan-500/30" />}
+                    {signal.mss && <Tag text={signal.mss} color="bg-purple-500/10 text-purple-300 border-purple-500/30" />}
+                    {signal.idm && <Tag text={signal.idm} color="bg-blue-500/10 text-blue-300 border-blue-500/30" />}
+                    {signal.breaker && <Tag text={signal.breaker} color="bg-pink-500/10 text-pink-300 border-pink-500/30" />}
+                    {signal.sss && <Tag text={signal.sss} color="bg-yellow-500/10 text-yellow-300 border-yellow-500/30" />}
+                    {signal.trendlineSweep && <Tag text={signal.trendlineSweep} color="bg-green-500/10 text-green-300 border-green-500/30" />}
+                    {signal.supplyDemand && <Tag text={signal.supplyDemand} color="bg-orange-500/10 text-orange-300 border-orange-500/30" />}
+                    {signal.equalLevels && <Tag text={signal.equalLevels} color="bg-red-500/10 text-red-300 border-red-500/30" />}
+                    {signal.range && <Tag text={`${signal.range.position} ${signal.range.pct}%`} color="bg-indigo-500/10 text-indigo-300 border-indigo-500/30" />}
+                    {!signal.dominantTrend && !signal.mss && !signal.idm && !signal.breaker && !signal.sss && !signal.trendlineSweep && !signal.supplyDemand && !signal.equalLevels && (
+                      <span style={{ color: "#6b7280", fontSize: 11 }}>None detected</span>
+                    )}
                     </div>
                   </div>
 
