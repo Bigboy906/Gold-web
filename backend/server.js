@@ -31,7 +31,6 @@ async function sendSignalEmail(signal) {
       <p style="color: #6b7280; font-size: 11px; margin-top: 16px;">Sent at ${new Date().toUTCString()}</p>
     </div>
   `;
-
   try {
     await resend.emails.send({
       from: "GoldSignal <onboarding@resend.dev>",
@@ -260,22 +259,34 @@ function calcTP(entry, sl, rr, direction) {
   return direction === "BUY" ? entry + risk * (rrMap[rr] || 2) : entry - risk * (rrMap[rr] || 2);
 }
 
-function buildAnalysis(htfBias, matchingSignals, biasDirection, htfRSI, ltfRSI, emaFilter, entry, stopLoss, takeProfit, rr, pair, extraContext, orderflow) {
+function buildAnalysis(htfBias, matchingSignals, biasDirection, htfRSI, ltfRSI, emaFilter, entry, stopLoss, takeProfit, rr, pair, extraContext, orderflow, htf, ltf) {
   const dir = biasDirection === "BUY" ? "bullish" : "bearish";
   const reasons = matchingSignals.map(s => s.type).join(", ");
   const emaText = emaFilter ? "EMA50 above EMA200 confirms the trend." : "EMA trend mixed but confluences are strong.";
-  const rsiText = `15m RSI at ${htfRSI.toFixed(1)}, 5m RSI at ${ltfRSI.toFixed(1)}, supporting ${dir} momentum.`;
+  const rsiText = `${htf} RSI at ${htfRSI.toFixed(1)}, ${ltf} RSI at ${ltfRSI.toFixed(1)}, supporting ${dir} momentum.`;
   const extraText = extraContext.length > 0 ? `Additional confluence: ${extraContext.join(", ")}.` : "";
   const flowText = orderflow ? `Orderflow shows ${orderflow.buyPct}% buying vs ${orderflow.sellPct}% selling pressure.` : "";
-  return `${pair} shows ${htfBias} — ${dir} structure confirmed. ${rsiText} ${emaText} ${extraText} ${flowText} Detected on 5m: ${reasons}. Entry at ${entry.toFixed(2)}, SL at ${stopLoss.toFixed(2)}, TP at ${takeProfit.toFixed(2)} (${rr} R:R).`;
+  return `${pair} shows ${htfBias} on ${htf} — ${dir} structure confirmed. ${rsiText} ${emaText} ${extraText} ${flowText} Detected on ${ltf}: ${reasons}. Entry at ${entry.toFixed(2)}, SL at ${stopLoss.toFixed(2)}, TP at ${takeProfit.toFixed(2)} (${rr} R:R).`;
 }
 
 app.get("/smc/:rr", async (req, res) => {
   const { rr } = req.params;
   const pair = req.query.pair || "XAU/USD";
+  const selectedTF = req.query.tf || "15m";
+
+  const tfMap = {
+    "5m":  { htf: "5m",  ltf: "5m" },
+    "15m": { htf: "15m", ltf: "5m" },
+    "30m": { htf: "30m", ltf: "15m" },
+    "1H":  { htf: "1H",  ltf: "15m" },
+    "4H":  { htf: "4H",  ltf: "1H" },
+  };
+
+  const { htf, ltf } = tfMap[selectedTF] || tfMap["15m"];
+
   try {
-    const htfCandles = await fetchCandles(pair, "15m", 100);
-    const ltfCandles = await fetchCandles(pair, "5m", 100);
+    const htfCandles = await fetchCandles(pair, htf, 100);
+    const ltfCandles = await fetchCandles(pair, ltf, 100);
     if (!htfCandles || !ltfCandles) return res.json({ error: "Could not fetch data. Try again." });
 
     const bos = detectBOS(htfCandles);
@@ -288,7 +299,7 @@ app.get("/smc/:rr", async (req, res) => {
     const htfSD = detectSupplyDemand(htfCandles);
     const htfEHL = detectEqualHighsLows(htfCandles);
 
-    if (!htfBias) return res.json({ message: `No clear market structure on 15m for ${pair}. Wait for BOS, CHOCH or MSS.` });
+    if (!htfBias) return res.json({ message: `No clear market structure on ${htf} for ${pair}. Wait for BOS, CHOCH or MSS.` });
 
     const biasDirection = htfBias.includes("Bullish") ? "BUY" : "SELL";
     const emaFilter = ema50 && ema200 ? (biasDirection === "BUY" ? ema50 > ema200 : ema50 < ema200) : true;
@@ -303,8 +314,6 @@ app.get("/smc/:rr", async (req, res) => {
     const fvg = detectFVG(ltfCandles);
     const idm = detectIDM(ltfCandles);
     const breaker = detectBreakerBlock(ltfCandles);
-    const htfSDResult = htfSD;
-    const htfEHLResult = htfEHL;
     const orderflow = calcOrderflow(ltfCandles);
 
     const allSignals = [ob, sweep, engulfing, wick, fvg, idm, breaker].filter(Boolean);
@@ -312,14 +321,14 @@ app.get("/smc/:rr", async (req, res) => {
 
     const extraContext = [];
     if (mss) extraContext.push(mss);
-    if (htfSDResult?.demandZone && biasDirection === "BUY") extraContext.push("15m Demand Zone");
-    if (htfSDResult?.supplyZone && biasDirection === "SELL") extraContext.push("15m Supply Zone");
-    if (htfEHLResult?.equalLows && biasDirection === "BUY") extraContext.push("Equal Lows swept");
-    if (htfEHLResult?.equalHighs && biasDirection === "SELL") extraContext.push("Equal Highs swept");
+    if (htfSD?.demandZone && biasDirection === "BUY") extraContext.push(`${htf} Demand Zone`);
+    if (htfSD?.supplyZone && biasDirection === "SELL") extraContext.push(`${htf} Supply Zone`);
+    if (htfEHL?.equalLows && biasDirection === "BUY") extraContext.push("Equal Lows swept");
+    if (htfEHL?.equalHighs && biasDirection === "SELL") extraContext.push("Equal Highs swept");
 
     if (matchingSignals.length === 0) {
       return res.json({
-        message: `${pair} 15m bias: ${biasDirection} (${htfBias}). RSI: ${htfRSI.toFixed(1)}. EMA: ${emaFilter ? "Confirmed" : "Against bias"}. ${extraContext.join(", ")}. Waiting for 5m entry...`
+        message: `${pair} ${htf} bias: ${biasDirection} (${htfBias}). RSI: ${htfRSI.toFixed(1)}. EMA: ${emaFilter ? "Confirmed" : "Against bias"}. ${extraContext.join(", ")}. Waiting for ${ltf} entry signal...`
       });
     }
 
@@ -355,7 +364,7 @@ app.get("/smc/:rr", async (req, res) => {
     confidence = Math.min(95, confidence);
 
     const reasons = matchingSignals.map(s => s.type).join(", ");
-    const analysis = buildAnalysis(htfBias, matchingSignals, biasDirection, htfRSI, ltfRSI, emaFilter, entry, stopLoss, takeProfit, rr, pair, extraContext, orderflow);
+    const analysis = buildAnalysis(htfBias, matchingSignals, biasDirection, htfRSI, ltfRSI, emaFilter, entry, stopLoss, takeProfit, rr, pair, extraContext, orderflow, htf, ltf);
 
     const signal = {
       pair, direction: biasDirection,
@@ -367,15 +376,18 @@ app.get("/smc/:rr", async (req, res) => {
       trend: htfBias, reasons,
       htfRSI: htfRSI.toFixed(1),
       ltfRSI: ltfRSI.toFixed(1),
+      htf, ltf,
       ema50: ema50 ? ema50.toFixed(2) : null,
       ema200: ema200 ? ema200.toFixed(2) : null,
       emaConfirmed: emaFilter,
       mss: mss || null,
       idm: idm ? idm.type : null,
       breaker: breaker ? breaker.type : null,
-      supplyDemand: biasDirection === "BUY" ? (htfSDResult?.demandZone ? "15m Demand Zone" : null) : (htfSDResult?.supplyZone ? "15m Supply Zone" : null),
-      equalLevels: biasDirection === "BUY" ? (htfEHLResult?.equalLows ? "Equal Lows" : null) : (htfEHLResult?.equalHighs ? "Equal Highs" : null),
-      orderflow, timeframe: "15m/5m", analysis,
+      supplyDemand: biasDirection === "BUY" ? (htfSD?.demandZone ? `${htf} Demand Zone` : null) : (htfSD?.supplyZone ? `${htf} Supply Zone` : null),
+      equalLevels: biasDirection === "BUY" ? (htfEHL?.equalLows ? "Equal Lows" : null) : (htfEHL?.equalHighs ? "Equal Highs" : null),
+      orderflow,
+      timeframe: `${htf}/${ltf}`,
+      analysis,
       timestamp: new Date().toISOString(),
     };
 

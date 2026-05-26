@@ -123,7 +123,7 @@ export default function App() {
     try {
       const rrParam = selectedRR.replace(":", "%3A");
       const pairParam = encodeURIComponent(selectedPair);
-      const res = await fetch(`https://gold-web.onrender.com/smc/${rrParam}?pair=${pairParam}`);
+      const res = await fetch(`https://gold-web.onrender.com/smc/${rrParam}?pair=${pairParam}&tf=${selectedTF}`);
       const data = await res.json();
       if (data.error) setError(data.error);
       else if (data.message) setMessage(data.message);
@@ -312,8 +312,8 @@ export default function App() {
                     {[
                       { label: "15m Bias", value: signal.trend, color: signal.trend?.includes("Bullish") ? "text-green-400" : "text-red-400" },
                       { label: "R:R", value: signal.rr, color: "text-yellow-400" },
-                      { label: "15m RSI", value: signal.htfRSI, color: "text-white" },
-                      { label: "5m RSI", value: signal.ltfRSI, color: "text-white" },
+                      { label: `${signal.htf || "15m"} RSI`, value: signal.htfRSI, color: "text-white" },
+                    { label: `${signal.ltf || "5m"} RSI`, value: signal.ltfRSI, color: "text-white" },
                       { label: "EMA 50", value: signal.ema50 || "N/A", color: "text-white" },
                       { label: "EMA OK", value: signal.emaConfirmed ? "✓ Yes" : "✗ No", color: signal.emaConfirmed ? "text-green-400" : "text-red-400" },
                     ].map((item, i) => (
