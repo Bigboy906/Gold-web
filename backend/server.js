@@ -11,6 +11,19 @@ const TWELVE_KEY = "865285eec7c449129e724b96f92c56d4";
 const resend = new Resend(process.env.RESEND_KEY);
 
 let latestSignal = null;
+const cache = {};
+const CACHE_TTL = 5 * 60 * 1000;
+
+function getCached(key) {
+  const entry = cache[key];
+  if (!entry) return null;
+  if (Date.now() - entry.time > CACHE_TTL) { delete cache[key]; return null; }
+  return entry.data;
+}
+
+function setCache(key, data) {
+  cache[key] = { data, time: Date.now() };
+}
 
 async function sendSignalEmail(signal) {
   const direction = signal.direction === "BUY" ? "🟢 BUY" : "🔴 SELL";
@@ -45,19 +58,26 @@ async function sendSignalEmail(signal) {
 }
 
 async function fetchCandles(pair, interval, outputsize = 100) {
+  const cacheKey = `${pair}_${interval}_${outputsize}`;
+  const cached = getCached(cacheKey);
+  if (cached) { console.log(`Cache hit: ${cacheKey}`); return cached; }
+
   const fetch = (await import("node-fetch")).default;
   const intervalMap = { "5m": "5min", "15m": "15min", "30m": "30min", "1H": "1h", "4H": "4h" };
   const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(pair)}&interval=${intervalMap[interval]}&outputsize=${outputsize}&apikey=${TWELVE_KEY}`;
   const res = await fetch(url);
   const data = await res.json();
   if (data.status === "error" || !data.values) return null;
-  return data.values.map(v => ({
+  const candles = data.values.map(v => ({
     time: v.datetime,
     open: parseFloat(v.open),
     high: parseFloat(v.high),
     low: parseFloat(v.low),
     close: parseFloat(v.close),
   })).reverse();
+  setCache(cacheKey, candles);
+  console.log(`Cache set: ${cacheKey}`);
+  return candles;
 }
 
 function calcRSI(candles, period = 14) {
@@ -87,7 +107,6 @@ function calcATR(candles, period = 14) {
   return atr / period;
 }
 
-// DOMINANT TREND — looks at 30 candles for overall direction
 function detectDominantTrend(candles) {
   if (candles.length < 30) return null;
   const lookback = candles.slice(-30);
@@ -101,10 +120,8 @@ function detectDominantTrend(candles) {
   return "Neutral";
 }
 
-// SWING HIGHS AND LOWS
-function detectSwings(candles, lookback = 5) {
-  const swingHighs = [];
-  const swingLows = [];
+function detectSwings(candles, lookback = 3) {
+  const swingHighs = [], swingLows = [];
   for (let i = lookback; i < candles.length - lookback; i++) {
     const slice = candles.slice(i - lookback, i + lookback + 1);
     const maxHigh = Math.max(...slice.map(c => c.high));
@@ -115,62 +132,46 @@ function detectSwings(candles, lookback = 5) {
   return { swingHighs, swingLows };
 }
 
-// BOS — uses swing highs/lows for accuracy
 function detectBOS(candles) {
   if (candles.length < 10) return null;
   const { swingHighs, swingLows } = detectSwings(candles, 3);
   if (swingHighs.length < 2 || swingLows.length < 2) return null;
-
   const lastHigh = swingHighs[swingHighs.length - 1];
   const prevHigh = swingHighs[swingHighs.length - 2];
   const lastLow = swingLows[swingLows.length - 1];
   const prevLow = swingLows[swingLows.length - 2];
   const last = candles[candles.length - 1];
-
-  // Bullish BOS — price breaks above previous swing high
   if (last.close > prevHigh.price && lastHigh.price > prevHigh.price) return "Bullish BOS";
-  // Bearish BOS — price breaks below previous swing low
   if (last.close < prevLow.price && lastLow.price < prevLow.price) return "Bearish BOS";
   return null;
 }
 
-// CHOCH
 function detectCHOCH(candles) {
   if (candles.length < 10) return null;
   const { swingHighs, swingLows } = detectSwings(candles, 3);
   if (swingHighs.length < 2 || swingLows.length < 2) return null;
-
   const lastHigh = swingHighs[swingHighs.length - 1];
   const prevHigh = swingHighs[swingHighs.length - 2];
   const lastLow = swingLows[swingLows.length - 1];
   const prevLow = swingLows[swingLows.length - 2];
-
-  // Bearish CHOCH — was making higher highs, now breaks a swing low
   if (lastHigh.price > prevHigh.price && lastLow.price < prevLow.price) return "Bearish CHOCH";
-  // Bullish CHOCH — was making lower lows, now breaks a swing high
   if (lastLow.price < prevLow.price && lastHigh.price > prevHigh.price) return "Bullish CHOCH";
   return null;
 }
 
-// MSS — Market Structure Shift
 function detectMSS(candles) {
   if (candles.length < 15) return null;
   const dominantTrend = detectDominantTrend(candles);
   const { swingHighs, swingLows } = detectSwings(candles, 3);
   if (!swingHighs.length || !swingLows.length) return null;
-
   const last = candles[candles.length - 1];
   const lastSwingHigh = swingHighs[swingHighs.length - 1]?.price;
   const lastSwingLow = swingLows[swingLows.length - 1]?.price;
-
-  // In bearish trend, price breaks above swing high = Bullish MSS
   if (dominantTrend === "Bearish" && last.close > lastSwingHigh) return "Bullish MSS";
-  // In bullish trend, price breaks below swing low = Bearish MSS
   if (dominantTrend === "Bullish" && last.close < lastSwingLow) return "Bearish MSS";
   return null;
 }
 
-// RANGE — swing high to swing low
 function detectRange(candles) {
   if (candles.length < 20) return null;
   const lookback = candles.slice(-20);
@@ -183,30 +184,19 @@ function detectRange(candles) {
   return { rangeHigh, rangeLow, mid, position, pct };
 }
 
-// PREMIUM/DISCOUNT
 function detectPremiumDiscount(candles) {
-  const range = detectRange(candles);
-  if (!range) return null;
-  return range;
+  return detectRange(candles);
 }
 
-// 50% IMBALANCE (FVG midpoint)
 function detectFVGWith50(candles) {
   if (candles.length < 3) return null;
   const len = candles.length;
   for (let i = len - 10; i < len - 2; i++) {
-    const c1 = candles[i];
-    const c3 = candles[i + 2];
-    // Bullish FVG
+    const c1 = candles[i], c3 = candles[i + 2];
     if (c3.low > c1.high) {
       const mid = (c3.low + c1.high) / 2;
-      const last = candles[len - 1];
-      if (last.close >= c1.high && last.close <= c3.low) {
-        return { type: "Bullish FVG", direction: "BUY", top: c3.low, bottom: c1.high, mid };
-      }
       return { type: "Bullish FVG", direction: "BUY", top: c3.low, bottom: c1.high, mid };
     }
-    // Bearish FVG
     if (c3.high < c1.low) {
       const mid = (c1.low + c3.high) / 2;
       return { type: "Bearish FVG", direction: "SELL", top: c1.low, bottom: c3.high, mid };
@@ -215,78 +205,43 @@ function detectFVGWith50(candles) {
   return null;
 }
 
-// TRENDLINE LIQUIDITY SWEEP
 function detectTrendlineLiquiditySweep(candles) {
   if (candles.length < 10) return null;
   const len = candles.length;
   const lookback = candles.slice(len - 10);
-
-  // Find trendline highs (bearish trendline)
-  let trendHighs = [];
+  let trendHighs = [], trendLows = [];
   for (let i = 1; i < lookback.length - 1; i++) {
-    if (lookback[i].high > lookback[i-1].high && lookback[i].high > lookback[i+1].high) {
-      trendHighs.push(lookback[i].high);
-    }
+    if (lookback[i].high > lookback[i-1].high && lookback[i].high > lookback[i+1].high) trendHighs.push(lookback[i].high);
+    if (lookback[i].low < lookback[i-1].low && lookback[i].low < lookback[i+1].low) trendLows.push(lookback[i].low);
   }
-
-  // Find trendline lows (bullish trendline)
-  let trendLows = [];
-  for (let i = 1; i < lookback.length - 1; i++) {
-    if (lookback[i].low < lookback[i-1].low && lookback[i].low < lookback[i+1].low) {
-      trendLows.push(lookback[i].low);
-    }
-  }
-
-  const last = candles[len - 1];
-  const prev = candles[len - 2];
-
-  // Bearish trendline sweep — price spikes above trendline then closes back below
+  const last = candles[len - 1], prev = candles[len - 2];
   if (trendHighs.length >= 2) {
     const trendlineLevel = Math.max(...trendHighs);
-    if (prev.high > trendlineLevel && last.close < trendlineLevel) {
-      return { type: "Bearish Trendline Liquidity Sweep", direction: "SELL" };
-    }
+    if (prev.high > trendlineLevel && last.close < trendlineLevel) return { type: "Bearish Trendline Liquidity Sweep", direction: "SELL" };
   }
-
-  // Bullish trendline sweep — price spikes below trendline then closes back above
   if (trendLows.length >= 2) {
     const trendlineLevel = Math.min(...trendLows);
-    if (prev.low < trendlineLevel && last.close > trendlineLevel) {
-      return { type: "Bullish Trendline Liquidity Sweep", direction: "BUY" };
-    }
+    if (prev.low < trendlineLevel && last.close > trendlineLevel) return { type: "Bullish Trendline Liquidity Sweep", direction: "BUY" };
   }
-
   return null;
 }
 
-// SSS — Stop hunt (liquidity sweep at swing high/low)
 function detectSSS(candles) {
   if (candles.length < 8) return null;
   const len = candles.length;
   const { swingHighs, swingLows } = detectSwings(candles.slice(0, len - 2), 3);
-  const last = candles[len - 1];
-  const prev = candles[len - 2];
-
+  const last = candles[len - 1], prev = candles[len - 2];
   if (swingHighs.length > 0) {
     const lastSwingHigh = swingHighs[swingHighs.length - 1].price;
-    // Price sweeps above swing high then closes below it
-    if (prev.high > lastSwingHigh && last.close < lastSwingHigh) {
-      return { type: "Bearish SSS (Stop Hunt)", direction: "SELL" };
-    }
+    if (prev.high > lastSwingHigh && last.close < lastSwingHigh) return { type: "Bearish SSS (Stop Hunt)", direction: "SELL" };
   }
-
   if (swingLows.length > 0) {
     const lastSwingLow = swingLows[swingLows.length - 1].price;
-    // Price sweeps below swing low then closes above it
-    if (prev.low < lastSwingLow && last.close > lastSwingLow) {
-      return { type: "Bullish SSS (Stop Hunt)", direction: "BUY" };
-    }
+    if (prev.low < lastSwingLow && last.close > lastSwingLow) return { type: "Bullish SSS (Stop Hunt)", direction: "BUY" };
   }
-
   return null;
 }
 
-// IDM
 function detectIDM(candles) {
   if (candles.length < 6) return null;
   const len = candles.length;
@@ -298,7 +253,6 @@ function detectIDM(candles) {
   return null;
 }
 
-// SUPPLY DEMAND
 function detectSupplyDemand(candles) {
   if (candles.length < 10) return null;
   const len = candles.length;
@@ -316,7 +270,6 @@ function detectSupplyDemand(candles) {
   return { demandZone, supplyZone };
 }
 
-// EQUAL HIGHS/LOWS
 function detectEqualHighsLows(candles) {
   if (candles.length < 10) return null;
   const len = candles.length;
@@ -325,18 +278,13 @@ function detectEqualHighsLows(candles) {
   let equalHighs = null, equalLows = null;
   for (let i = 0; i < lookback.length - 3; i++) {
     for (let j = i + 2; j < lookback.length; j++) {
-      if (Math.abs(lookback[i].high - lookback[j].high) / lookback[i].high < threshold) {
-        equalHighs = { level: lookback[i].high, type: "Equal Highs", direction: "SELL" };
-      }
-      if (Math.abs(lookback[i].low - lookback[j].low) / lookback[i].low < threshold) {
-        equalLows = { level: lookback[i].low, type: "Equal Lows", direction: "BUY" };
-      }
+      if (Math.abs(lookback[i].high - lookback[j].high) / lookback[i].high < threshold) equalHighs = { level: lookback[i].high, type: "Equal Highs", direction: "SELL" };
+      if (Math.abs(lookback[i].low - lookback[j].low) / lookback[i].low < threshold) equalLows = { level: lookback[i].low, type: "Equal Lows", direction: "BUY" };
     }
   }
   return { equalHighs, equalLows };
 }
 
-// BREAKER BLOCK
 function detectBreakerBlock(candles) {
   if (candles.length < 6) return null;
   const len = candles.length;
@@ -352,7 +300,6 @@ function detectBreakerBlock(candles) {
   return null;
 }
 
-// ORDER BLOCK
 function detectOrderBlock(candles) {
   if (candles.length < 4) return null;
   const len = candles.length;
@@ -368,7 +315,6 @@ function detectOrderBlock(candles) {
   return null;
 }
 
-// LIQUIDITY SWEEP
 function detectLiquiditySweep(candles) {
   if (candles.length < 5) return null;
   const len = candles.length;
@@ -380,21 +326,15 @@ function detectLiquiditySweep(candles) {
   return null;
 }
 
-// ENGULFING
 function detectEngulfing(candles) {
   if (candles.length < 2) return null;
   const len = candles.length;
   const prev = candles[len-2], curr = candles[len-1];
-  if (prev.close < prev.open && curr.close > curr.open && curr.close > prev.open && curr.open < prev.close) {
-    return { type: "Bullish Engulfing", direction: "BUY" };
-  }
-  if (prev.close > prev.open && curr.close < curr.open && curr.close < prev.open && curr.open > prev.close) {
-    return { type: "Bearish Engulfing", direction: "SELL" };
-  }
+  if (prev.close < prev.open && curr.close > curr.open && curr.close > prev.open && curr.open < prev.close) return { type: "Bullish Engulfing", direction: "BUY" };
+  if (prev.close > prev.open && curr.close < curr.open && curr.close < prev.open && curr.open > prev.close) return { type: "Bearish Engulfing", direction: "SELL" };
   return null;
 }
 
-// REJECTION WICK
 function detectRejectionWick(candles) {
   if (candles.length < 1) return null;
   const last = candles[candles.length-1];
@@ -406,16 +346,13 @@ function detectRejectionWick(candles) {
   return null;
 }
 
-// ORDERFLOW
 function calcOrderflow(candles) {
   let buyVolume = 0, sellVolume = 0, cvd = 0;
   candles.slice(-20).forEach(c => {
     const range = c.high - c.low || 1;
     const bullish = (c.close - c.low) / range;
     const bearish = (c.high - c.close) / range;
-    buyVolume += bullish;
-    sellVolume += bearish;
-    cvd += bullish - bearish;
+    buyVolume += bullish; sellVolume += bearish; cvd += bullish - bearish;
   });
   const total = buyVolume + sellVolume || 1;
   const buyPct = Math.round((buyVolume / total) * 100);
@@ -458,9 +395,8 @@ app.get("/smc/:rr", async (req, res) => {
   try {
     const htfCandles = await fetchCandles(pair, htf, 100);
     const ltfCandles = await fetchCandles(pair, ltf, 100);
-    if (!htfCandles || !ltfCandles) return res.json({ error: "Could not fetch data. Try again." });
+    if (!htfCandles || !ltfCandles) return res.json({ error: "Could not fetch data. API limit may have been reached. Try again in a few minutes." });
 
-    // HTF Analysis
     const dominantTrend = detectDominantTrend(htfCandles);
     const bos = detectBOS(htfCandles);
     const choch = detectCHOCH(htfCandles);
@@ -473,17 +409,11 @@ app.get("/smc/:rr", async (req, res) => {
     const htfEHL = detectEqualHighsLows(htfCandles);
     const htfRange = detectPremiumDiscount(htfCandles);
 
-    if (!htfBias && !dominantTrend) {
-      return res.json({ message: `No clear market structure on ${htf} for ${pair}. Wait for BOS, CHOCH or MSS.` });
-    }
-
-    // Use dominant trend as fallback if no BOS/CHOCH
     const structureBias = htfBias || (dominantTrend === "Bullish" ? "Bullish Trend" : dominantTrend === "Bearish" ? "Bearish Trend" : null);
     if (!structureBias) return res.json({ message: `No clear bias on ${htf}. Market is neutral.` });
 
     const biasDirection = structureBias.includes("Bullish") ? "BUY" : "SELL";
 
-    // Validate bias against dominant trend
     if (dominantTrend && dominantTrend !== "Neutral") {
       const trendDirection = dominantTrend === "Bullish" ? "BUY" : "SELL";
       if (trendDirection !== biasDirection) {
@@ -491,20 +421,18 @@ app.get("/smc/:rr", async (req, res) => {
       }
     }
 
-    // Premium/Discount filter
     if (htfRange) {
       if (biasDirection === "BUY" && htfRange.position === "Premium") {
-        return res.json({ message: `${pair} bias is BUY but price is in Premium zone (${htfRange.pct}%). Wait for price to reach Discount zone for better entry.` });
+        return res.json({ message: `${pair} bias is BUY but price is in Premium zone (${htfRange.pct}%). Wait for price to reach Discount zone.` });
       }
       if (biasDirection === "SELL" && htfRange.position === "Discount") {
-        return res.json({ message: `${pair} bias is SELL but price is in Discount zone (${htfRange.pct}%). Wait for price to reach Premium zone for better entry.` });
+        return res.json({ message: `${pair} bias is SELL but price is in Discount zone (${htfRange.pct}%). Wait for price to reach Premium zone.` });
       }
     }
 
     const emaFilter = ema50 && ema200 ? (biasDirection === "BUY" ? ema50 > ema200 : ema50 < ema200) : true;
     const rsiFilter = biasDirection === "BUY" ? htfRSI < 75 : htfRSI > 25;
 
-    // LTF Analysis
     const ltfRSI = calcRSI(ltfCandles);
     const ltfATR = calcATR(ltfCandles);
     const ltfRange = detectPremiumDiscount(ltfCandles);
@@ -581,9 +509,7 @@ app.get("/smc/:rr", async (req, res) => {
       stopLoss: stopLoss.toFixed(2),
       rr, confidence,
       pattern: matchingSignals[0].type,
-      trend: structureBias,
-      dominantTrend,
-      reasons,
+      trend: structureBias, dominantTrend, reasons,
       htfRSI: htfRSI.toFixed(1),
       ltfRSI: ltfRSI.toFixed(1),
       htf, ltf,
@@ -597,10 +523,8 @@ app.get("/smc/:rr", async (req, res) => {
       trendlineSweep: trendlineSweep ? trendlineSweep.type : null,
       supplyDemand: biasDirection === "BUY" ? (htfSD?.demandZone ? `${htf} Demand Zone` : null) : (htfSD?.supplyZone ? `${htf} Supply Zone` : null),
       equalLevels: biasDirection === "BUY" ? (htfEHL?.equalLows ? "Equal Lows" : null) : (htfEHL?.equalHighs ? "Equal Highs" : null),
-      range: htfRange,
-      orderflow,
-      timeframe: `${htf}/${ltf}`,
-      analysis,
+      range: htfRange, orderflow,
+      timeframe: `${htf}/${ltf}`, analysis,
       timestamp: new Date().toISOString(),
     };
 
@@ -683,11 +607,15 @@ app.get("/sentiment/:pair", async (req, res) => {
 
 app.get("/price", async (req, res) => {
   try {
-    const fetch = (await import("node-fetch")).default;
     const pair = req.query.pair || "XAU/USD";
+    const cacheKey = `price_${pair}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json({ price: cached, pair });
+    const fetch = (await import("node-fetch")).default;
     const url = `https://api.twelvedata.com/price?symbol=${encodeURIComponent(pair)}&apikey=${TWELVE_KEY}`;
     const r = await fetch(url);
     const data = await r.json();
+    if (data.price) setCache(cacheKey, data.price);
     res.json({ price: data.price, pair });
   } catch (err) {
     res.json({ error: "Price fetch failed" });
