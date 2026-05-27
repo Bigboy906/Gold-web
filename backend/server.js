@@ -61,7 +61,6 @@ async function fetchCandles(pair, interval, outputsize = 100) {
   const cacheKey = `${pair}_${interval}_${outputsize}`;
   const cached = getCached(cacheKey);
   if (cached) { console.log(`Cache hit: ${cacheKey}`); return cached; }
-
   const fetch = (await import("node-fetch")).default;
   const intervalMap = { "5m": "5min", "15m": "15min", "30m": "30min", "1H": "1h", "4H": "4h" };
   const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(pair)}&interval=${intervalMap[interval]}&outputsize=${outputsize}&apikey=${TWELVE_KEY}`;
@@ -76,7 +75,6 @@ async function fetchCandles(pair, interval, outputsize = 100) {
     close: parseFloat(v.close),
   })).reverse();
   setCache(cacheKey, candles);
-  console.log(`Cache set: ${cacheKey}`);
   return candles;
 }
 
@@ -108,7 +106,7 @@ function calcATR(candles, period = 14) {
 }
 
 function detectDominantTrend(candles) {
-  if (candles.length < 30) return null;
+  if (candles.length < 30) return "Neutral";
   const lookback = candles.slice(-30);
   let higherHighs = 0, lowerLows = 0;
   for (let i = 2; i < lookback.length; i++) {
@@ -126,8 +124,8 @@ function detectSwings(candles, lookback = 3) {
     const slice = candles.slice(i - lookback, i + lookback + 1);
     const maxHigh = Math.max(...slice.map(c => c.high));
     const minLow = Math.min(...slice.map(c => c.low));
-    if (candles[i].high === maxHigh) swingHighs.push({ index: i, price: candles[i].high, time: candles[i].time });
-    if (candles[i].low === minLow) swingLows.push({ index: i, price: candles[i].low, time: candles[i].time });
+    if (candles[i].high === maxHigh) swingHighs.push({ index: i, price: candles[i].high });
+    if (candles[i].low === minLow) swingLows.push({ index: i, price: candles[i].low });
   }
   return { swingHighs, swingLows };
 }
@@ -173,8 +171,8 @@ function detectMSS(candles) {
 }
 
 function detectRange(candles) {
-  if (candles.length < 30) return null;
   const lookback = candles.slice(-50);
+  if (lookback.length < 10) return null;
   const rangeHigh = Math.max(...lookback.map(c => c.high));
   const rangeLow = Math.min(...lookback.map(c => c.low));
   const mid = (rangeHigh + rangeLow) / 2;
@@ -410,29 +408,23 @@ app.get("/smc/:rr", async (req, res) => {
     const htfRange = detectPremiumDiscount(htfCandles);
 
     const structureBias = htfBias || (dominantTrend === "Bullish" ? "Bullish Trend" : dominantTrend === "Bearish" ? "Bearish Trend" : null);
-    if (!structureBias) return res.json({ message: `No clear bias on ${htf}. Market is neutral.` });
+    if (!structureBias) return res.json({ message: `No clear bias on ${htf}. Market is neutral — wait for structure to form.` });
 
     const biasDirection = structureBias.includes("Bullish") ? "BUY" : "SELL";
 
+    // Only conflict if dominant trend strongly opposes bias
     if (dominantTrend && dominantTrend !== "Neutral") {
       const trendDirection = dominantTrend === "Bullish" ? "BUY" : "SELL";
-      if (trendDirection !== biasDirection) {
-        return res.json({ message: `${htf} shows ${structureBias} but dominant trend is ${dominantTrend}. Conflicting signals — wait for clarity.` });
+      if (trendDirection !== biasDirection && !mss) {
+        return res.json({ message: `${htf} shows ${structureBias} but dominant trend is ${dominantTrend}. Wait for MSS to confirm reversal.` });
       }
     }
-
-    // Only block if weak confluence — strong signals override zone filter
-    const zoneConflict = htfRange && (
-      (biasDirection === "BUY" && htfRange.position === "Premium") ||
-      (biasDirection === "SELL" && htfRange.position === "Discount")
-    );
 
     const emaFilter = ema50 && ema200 ? (biasDirection === "BUY" ? ema50 > ema200 : ema50 < ema200) : true;
     const rsiFilter = biasDirection === "BUY" ? htfRSI < 75 : htfRSI > 25;
 
     const ltfRSI = calcRSI(ltfCandles);
     const ltfATR = calcATR(ltfCandles);
-    const ltfRange = detectPremiumDiscount(ltfCandles);
     const ob = detectOrderBlock(ltfCandles);
     const sweep = detectLiquiditySweep(ltfCandles);
     const engulfing = detectEngulfing(ltfCandles);
@@ -447,20 +439,30 @@ app.get("/smc/:rr", async (req, res) => {
     const allSignals = [ob, sweep, engulfing, wick, fvg, idm, breaker, sss, trendlineSweep].filter(Boolean);
     const matchingSignals = allSignals.filter(s => s.direction === biasDirection);
 
+    // Zone conflict — only block if price deeply in wrong zone AND weak signals
+    const zoneConflict = htfRange && (
+      (biasDirection === "BUY" && parseFloat(htfRange.pct) > 70) ||
+      (biasDirection === "SELL" && parseFloat(htfRange.pct) < 30)
+    );
+
     const extraContext = [];
     if (mss) extraContext.push(mss);
-    if (dominantTrend) extraContext.push(`Dominant: ${dominantTrend}`);
+    if (dominantTrend && dominantTrend !== "Neutral") extraContext.push(`Dominant: ${dominantTrend}`);
     if (htfSD?.demandZone && biasDirection === "BUY") extraContext.push(`${htf} Demand Zone`);
     if (htfSD?.supplyZone && biasDirection === "SELL") extraContext.push(`${htf} Supply Zone`);
     if (htfEHL?.equalLows && biasDirection === "BUY") extraContext.push("Equal Lows swept");
     if (htfEHL?.equalHighs && biasDirection === "SELL") extraContext.push("Equal Highs swept");
     if (htfRange) extraContext.push(`Price in ${htfRange.position} (${htfRange.pct}%)`);
 
-   if (zoneConflict && matchingSignals.length < 3) {
-      return res.json({ message: `${pair} bias is ${biasDirection} (${structureBias}) but price is in ${htfRange.position} zone (${htfRange.pct}%). Need stronger confluences to trade against zone. Currently ${matchingSignals.length} signal(s) detected.` });
-    }
+    if (zoneConflict && matchingSignals.length < 3) {
       return res.json({
-        message: `${pair} ${htf} bias: ${biasDirection} (${structureBias}). Dominant trend: ${dominantTrend}. RSI: ${htfRSI.toFixed(1)}. ${htfRange ? `Price in ${htfRange.position}.` : ""} Waiting for ${ltf} entry signal...`
+        message: `${pair} bias is ${biasDirection} (${structureBias}) but price is deeply in ${htfRange.position} zone (${htfRange.pct}%). Need 3+ confluences to trade here. Currently ${matchingSignals.length} signal(s).`
+      });
+    }
+
+    if (matchingSignals.length === 0) {
+      return res.json({
+        message: `${pair} ${htf} bias: ${biasDirection} (${structureBias}). Dominant: ${dominantTrend}. RSI: ${htfRSI.toFixed(1)}. ${htfRange ? `Price in ${htfRange.position} (${htfRange.pct}%).` : ""} Waiting for ${ltf} entry signal...`
       });
     }
 
@@ -493,7 +495,7 @@ app.get("/smc/:rr", async (req, res) => {
     if (sss) confidence += 10;
     if (trendlineSweep) confidence += 8;
     if (dominantTrend && dominantTrend !== "Neutral") confidence += 8;
-    if (htfRange && ((biasDirection === "BUY" && htfRange.position === "Discount") || (biasDirection === "SELL" && htfRange.position === "Premium"))) confidence += 7;
+    if (htfRange && ((biasDirection === "BUY" && parseFloat(htfRange.pct) < 50) || (biasDirection === "SELL" && parseFloat(htfRange.pct) > 50))) confidence += 7;
     if (biasDirection === "BUY" && ltfRSI > 50) confidence += 5;
     if (biasDirection === "SELL" && ltfRSI < 50) confidence += 5;
     confidence = Math.min(95, confidence);
@@ -562,7 +564,6 @@ app.get("/mtf/:pair", async (req, res) => {
       if (direction === "BUY" && rsi > 50) confidence += 15;
       if (direction === "SELL" && rsi < 50) confidence += 15;
       if (mss) confidence += 10;
-      if (dominantTrend !== "Neutral") confidence += 5;
       confidence = Math.min(95, confidence);
       results.push({ tf, direction, confidence, bias, rsi: rsi.toFixed(1) });
     }
