@@ -173,8 +173,8 @@ function detectMSS(candles) {
 }
 
 function detectRange(candles) {
-  if (candles.length < 20) return null;
-  const lookback = candles.slice(-20);
+  if (candles.length < 30) return null;
+  const lookback = candles.slice(-50);
   const rangeHigh = Math.max(...lookback.map(c => c.high));
   const rangeLow = Math.min(...lookback.map(c => c.low));
   const mid = (rangeHigh + rangeLow) / 2;
@@ -421,14 +421,11 @@ app.get("/smc/:rr", async (req, res) => {
       }
     }
 
-    if (htfRange) {
-      if (biasDirection === "BUY" && htfRange.position === "Premium") {
-        return res.json({ message: `${pair} bias is BUY but price is in Premium zone (${htfRange.pct}%). Wait for price to reach Discount zone.` });
-      }
-      if (biasDirection === "SELL" && htfRange.position === "Discount") {
-        return res.json({ message: `${pair} bias is SELL but price is in Discount zone (${htfRange.pct}%). Wait for price to reach Premium zone.` });
-      }
-    }
+    // Only block if weak confluence — strong signals override zone filter
+    const zoneConflict = htfRange && (
+      (biasDirection === "BUY" && htfRange.position === "Premium") ||
+      (biasDirection === "SELL" && htfRange.position === "Discount")
+    );
 
     const emaFilter = ema50 && ema200 ? (biasDirection === "BUY" ? ema50 > ema200 : ema50 < ema200) : true;
     const rsiFilter = biasDirection === "BUY" ? htfRSI < 75 : htfRSI > 25;
@@ -459,7 +456,9 @@ app.get("/smc/:rr", async (req, res) => {
     if (htfEHL?.equalHighs && biasDirection === "SELL") extraContext.push("Equal Highs swept");
     if (htfRange) extraContext.push(`Price in ${htfRange.position} (${htfRange.pct}%)`);
 
-    if (matchingSignals.length === 0) {
+   if (zoneConflict && matchingSignals.length < 3) {
+      return res.json({ message: `${pair} bias is ${biasDirection} (${structureBias}) but price is in ${htfRange.position} zone (${htfRange.pct}%). Need stronger confluences to trade against zone. Currently ${matchingSignals.length} signal(s) detected.` });
+    }
       return res.json({
         message: `${pair} ${htf} bias: ${biasDirection} (${structureBias}). Dominant trend: ${dominantTrend}. RSI: ${htfRSI.toFixed(1)}. ${htfRange ? `Price in ${htfRange.position}.` : ""} Waiting for ${ltf} entry signal...`
       });
