@@ -1,408 +1,135 @@
-import { useState, useEffect } from "react";
-import Chart from "./Chart";
-import PositionSize from "./PositionSize";
-import SignalHistory from "./SignalHistory";
-import NewsFilter from "./NewsFilter";
-import MultiTimeframe from "./MultiTimeframe";
-import Sentiment from "./Sentiment";
+import { useEffect, useRef, useState } from "react";
+import { createChart, CandlestickSeries, LineSeries } from "lightweight-charts";
 
-const TIMEFRAMES = ["5m", "15m", "30m", "1H", "4H"];
-const RR_OPTIONS = ["1:1.5", "1:2", "1:3", "1:3.5"];
-const PAIRS = ["XAU/USD", "BTC/USD"];
-
-function getSessionInfo() {
-  const now = new Date();
-  const utcHour = now.getUTCHours();
-  const utcMin = now.getUTCMinutes();
-  const utcTime = utcHour + utcMin / 60;
-  let session, killzone, sessionColor, killzoneColor;
-  if (utcTime >= 0 && utcTime < 7) { session = "Asian"; sessionColor = "text-purple-400"; }
-  else if (utcTime >= 7 && utcTime < 13) { session = "London"; sessionColor = "text-blue-400"; }
-  else if (utcTime >= 13 && utcTime < 22) { session = "New York"; sessionColor = "text-orange-400"; }
-  else { session = "Off Hours"; sessionColor = "text-gray-500"; }
-  if (utcTime >= 0 && utcTime < 3) { killzone = "Asian KZ"; killzoneColor = "text-purple-300"; }
-  else if (utcTime >= 7 && utcTime < 9) { killzone = "London Open KZ"; killzoneColor = "text-blue-300"; }
-  else if (utcTime >= 12 && utcTime < 13.5) { killzone = "NY Open KZ"; killzoneColor = "text-orange-300"; }
-  else if (utcTime >= 15 && utcTime < 16) { killzone = "London Close KZ"; killzoneColor = "text-pink-300"; }
-  return { session, sessionColor, killzone, killzoneColor };
-}
-
-function CandlestickBackground() {
-  const candles = Array.from({ length: 40 }, (_, i) => ({
-    i, isUp: Math.random() > 0.5,
-    bodyH: 40 + Math.random() * 100,
-    totalH: 80 + Math.random() * 120,
-    yPos: 5 + Math.random() * 60,
-    duration: 6 + Math.random() * 8,
-    delay: Math.random() * 8,
-    opacity: 0.15 + Math.random() * 0.25,
-    x: (i / 40) * 105,
-  }));
-  return (
-    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-      <div className="absolute inset-0" style={{
-        backgroundImage: "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
-        backgroundSize: "60px 60px"
-      }} />
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full"
-        style={{ background: "radial-gradient(circle, rgba(245,158,11,0.15), transparent 70%)", filter: "blur(40px)", animation: "pulse 6s ease-in-out infinite" }} />
-      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full"
-        style={{ background: "radial-gradient(circle, rgba(59,130,246,0.15), transparent 70%)", filter: "blur(40px)", animation: "pulse 8s ease-in-out 2s infinite" }} />
-      <svg width="100%" height="100%" className="absolute inset-0">
-        <defs>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="3" result="coloredBlur" />
-            <feMerge><feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
-        {candles.map((c) => (
-          <g key={c.i} style={{ opacity: c.opacity }}>
-            <style>{`@keyframes candle-${c.i} { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-20px)} }`}</style>
-            <g style={{ animation: `candle-${c.i} ${c.duration}s ease-in-out ${c.delay}s infinite` }}>
-              <line x1={`${c.x}%`} y1={`${c.yPos}%`} x2={`${c.x}%`} y2={`${c.yPos + c.totalH / 6}%`}
-                stroke={c.isUp ? "#22c55e" : "#ef4444"} strokeWidth="2" filter="url(#glow)" />
-              <rect x={`calc(${c.x}% - 6px)`} y={`${c.yPos + 8}%`} width="12" height={`${c.bodyH / 10}%`}
-                fill={c.isUp ? "#22c55e" : "#ef4444"} rx="2" filter="url(#glow)" />
-            </g>
-          </g>
-        ))}
-      </svg>
-      <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/70 via-[#0a0a0f]/30 to-[#0a0a0f]/70" />
-      <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0f]/60 via-transparent to-[#0a0a0f]/60" />
-    </div>
-  );
-}
-
-const Tag = ({ text, color }) => (
-  <span className={`px-2 py-0.5 rounded-full text-xs border ${color}`}>{text}</span>
-);
-
-export default function App() {
-  const [signal, setSignal] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [selectedRR, setSelectedRR] = useState("1:2");
-  const [selectedTF, setSelectedTF] = useState("15m");
-  const [selectedPair, setSelectedPair] = useState("XAU/USD");
-  const [error, setError] = useState(null);
-  const [message, setMessage] = useState(null);
-  const [prices, setPrices] = useState({});
-  const [time, setTime] = useState(new Date());
-  const [sessionInfo, setSessionInfo] = useState(getSessionInfo());
-  const [activeTab, setActiveTab] = useState("signal");
+export default function Chart({ signal, interval }) {
+  const containerRef = useRef(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const clock = setInterval(() => { setTime(new Date()); setSessionInfo(getSessionInfo()); }, 1000);
-    return () => clearInterval(clock);
-  }, []);
+    if (!containerRef.current) return;
 
-  useEffect(() => {
-    const fetchPrices = async () => {
-      try {
-        const [goldRes, btcRes] = await Promise.all([
-          fetch("https://gold-web.onrender.com/price?pair=XAU%2FUSD"),
-          fetch("https://gold-web.onrender.com/price?pair=BTC%2FUSD"),
-        ]);
-        const goldData = await goldRes.json();
-        const btcData = await btcRes.json();
-        setPrices({
-          "XAU/USD": goldData.price ? parseFloat(goldData.price).toFixed(2) : null,
-          "BTC/USD": btcData.price ? parseFloat(btcData.price).toFixed(0) : null,
-        });
-      } catch (err) {}
-    };
-    fetchPrices();
-    const interval = setInterval(fetchPrices, 15000);
-    return () => clearInterval(interval);
-  }, []);
+    const chart = createChart(containerRef.current, {
+      layout: {
+        background: { color: "#0d0d14" },
+        textColor: "#9ca3af",
+      },
+      grid: {
+        vertLines: { color: "rgba(255,255,255,0.05)" },
+        horzLines: { color: "rgba(255,255,255,0.05)" },
+      },
+      crosshair: { mode: 1 },
+      rightPriceScale: { borderColor: "rgba(255,255,255,0.1)" },
+      timeScale: {
+        borderColor: "rgba(255,255,255,0.1)",
+        timeVisible: true,
+        secondsVisible: false,
+      },
+      width: containerRef.current.clientWidth,
+      height: containerRef.current.clientHeight,
+    });
 
-  const analyse = async () => {
-    setLoading(true);
-    setError(null);
-    setSignal(null);
-    setMessage(null);
-    try {
-      const rrParam = selectedRR.replace(":", "%3A");
-      const pairParam = encodeURIComponent(selectedPair);
-      const res = await fetch(`https://gold-web.onrender.com/smc/${rrParam}?pair=${pairParam}&tf=${selectedTF}`);
-      const data = await res.json();
-      if (data.error) setError(data.error);
-      else if (data.message) setMessage(data.message);
-      else {
-        setSignal(data);
-        setActiveTab("signal");
-        const saved = localStorage.getItem("signalHistory");
-        const history = saved ? JSON.parse(saved) : [];
-        history.push(data);
-        localStorage.setItem("signalHistory", JSON.stringify(history));
+    const candleSeries = chart.addSeries(CandlestickSeries, {
+      upColor: "#22c55e",
+      downColor: "#ef4444",
+      borderUpColor: "#22c55e",
+      borderDownColor: "#ef4444",
+      wickUpColor: "#22c55e",
+      wickDownColor: "#ef4444",
+    });
+
+    const pair = signal?.pair || "XAU/USD";
+    const intervalMap = { "5m": "5min", "15m": "15min", "30m": "30min", "1H": "1h", "4H": "4h" };
+    const apiInterval = intervalMap[interval] || "15min";
+
+    // Fetch real candle data
+    fetch(`https://gold-web.onrender.com/candles?pair=${encodeURIComponent(pair)}&interval=${apiInterval}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.candles && data.candles.length > 0) {
+          candleSeries.setData(data.candles);
+          setLoading(false);
+        } else {
+          // Fallback to placeholder
+          usePlaceholder(candleSeries, signal);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        usePlaceholder(candleSeries, signal);
+        setLoading(false);
+      });
+
+    function usePlaceholder(series, sig) {
+      const now = Math.floor(Date.now() / 1000);
+      const candles = [];
+      let price = sig ? parseFloat(sig.entry) : 2340;
+      for (let i = 50; i >= 0; i--) {
+        const time = now - i * 900;
+        const open = price;
+        const change = (Math.random() - 0.48) * 8;
+        const close = open + change;
+        const high = Math.max(open, close) + Math.random() * 4;
+        const low = Math.min(open, close) - Math.random() * 4;
+        candles.push({ time, open, high, low, close });
+        price = close;
       }
-    } catch (err) {
-      setError("Failed to connect to server");
-    } finally {
-      setLoading(false);
+      series.setData(candles);
     }
-  };
 
-  const tickerItems = [
-    { text: `XAU/USD  ${prices["XAU/USD"] ? `$${prices["XAU/USD"]}` : "..."}`, color: "text-yellow-400 font-bold" },
-    { text: `BTC/USD  ${prices["BTC/USD"] ? `$${prices["BTC/USD"]}` : "..."}`, color: "text-orange-400 font-bold" },
-    { text: `Session: ${sessionInfo.session}`, color: sessionInfo.sessionColor + " font-semibold" },
-    { text: sessionInfo.killzone ? `🎯 ${sessionInfo.killzone} ACTIVE` : "No Killzone", color: sessionInfo.killzone ? sessionInfo.killzoneColor + " font-bold" : "text-gray-500" },
-    { text: `Strategy: SMC + Price Action`, color: "text-blue-400" },
-    { text: `MSS • IDM • OB • BB • FVG • Liquidity • Supply/Demand`, color: "text-gray-300" },
-  ];
-  const allTickers = [...tickerItems, ...tickerItems, ...tickerItems];
-  const currentPrice = prices[selectedPair];
+    // Draw signal lines
+    if (signal) {
+      const entry = parseFloat(signal.entry);
+      const tp = parseFloat(signal.takeProfit);
+      const sl = parseFloat(signal.stopLoss);
+      const now = Math.floor(Date.now() / 1000);
+      const start = now - 900;
+      const end = now + 3600 * 4;
 
-  const tabs = [
-    { id: "signal", label: "Signal" },
-    { id: "chart", label: "Chart" },
-    { id: "tools", label: "Tools" },
-    { id: "market", label: "Market" },
-  ];
+      const entryLine = chart.addSeries(LineSeries, {
+        color: "#f59e0b", lineWidth: 2, lineStyle: 2,
+        title: `Entry ${entry}`, priceLineVisible: false, lastValueVisible: true,
+      });
+      entryLine.setData([{ time: start, value: entry }, { time: end, value: entry }]);
+
+      const tpLine = chart.addSeries(LineSeries, {
+        color: "#22c55e", lineWidth: 2, lineStyle: 2,
+        title: `TP ${tp}`, priceLineVisible: false, lastValueVisible: true,
+      });
+      tpLine.setData([{ time: start, value: tp }, { time: end, value: tp }]);
+
+      const slLine = chart.addSeries(LineSeries, {
+        color: "#ef4444", lineWidth: 2, lineStyle: 2,
+        title: `SL ${sl}`, priceLineVisible: false, lastValueVisible: true,
+      });
+      slLine.setData([{ time: start, value: sl }, { time: end, value: sl }]);
+    }
+
+    chart.timeScale().fitContent();
+
+    const handleResize = () => {
+      if (containerRef.current) {
+        chart.applyOptions({
+          width: containerRef.current.clientWidth,
+          height: containerRef.current.clientHeight,
+        });
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      chart.remove();
+    };
+  }, [signal, interval]);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white font-sans relative">
-      <CandlestickBackground />
-      <style>{`
-        @keyframes ticker { 0%{transform:translateX(0)} 100%{transform:translateX(-33.33%)} }
-        .ticker-track { display:flex; width:max-content; animation:ticker 50s linear infinite; }
-        .ticker-track:hover { animation-play-state:paused; }
-      `}</style>
-
-      <div className="relative z-10 flex flex-col min-h-screen">
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 backdrop-blur-md bg-[#0a0a0f]/60 sticky top-0 z-20">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-yellow-500 rounded-lg flex items-center justify-center text-black font-bold shadow-[0_0_20px_rgba(234,179,8,0.9)]">G</div>
-            <span className="font-bold text-base tracking-wide">GoldSignal</span>
-          </div>
-          <div className="flex items-center gap-3">
-            {currentPrice && (
-              <span className="text-yellow-400 font-bold text-sm drop-shadow-[0_0_8px_rgba(234,179,8,0.9)]">
-                {selectedPair} ${currentPrice}
-              </span>
-            )}
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-xs">Live</span>
-            </div>
-          </div>
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      {loading && (
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#0d0d14", borderRadius: 16, zIndex: 1 }}>
+          <p style={{ color: "#9ca3af", fontSize: 12 }}>Loading chart...</p>
         </div>
-
-        {/* Ticker */}
-        <div className="bg-[#0d0d14]/70 border-b border-white/10 py-1.5 overflow-hidden">
-          <div className="ticker-track">
-            {allTickers.map((item, i) => (
-              <span key={i} className="flex items-center">
-                <span className={`text-xs px-4 whitespace-nowrap ${item.color}`}>{item.text}</span>
-                <span className="text-white/30">•</span>
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Killzone Banner */}
-        {sessionInfo.killzone && (
-          <div className="mx-3 mt-2 rounded-xl border border-orange-500/40 bg-orange-500/15 px-3 py-1.5 flex items-center gap-2">
-            <span className="text-orange-400 animate-pulse">🎯</span>
-            <span className="text-orange-300 font-semibold text-xs">{sessionInfo.killzone} ACTIVE</span>
-            <span className={`ml-auto text-xs font-medium ${sessionInfo.sessionColor}`}>{sessionInfo.session}</span>
-          </div>
-        )}
-
-        {/* Controls — always visible */}
-        <div className="bg-[#111118]/80 backdrop-blur-md mx-3 mt-3 rounded-2xl p-4 border border-white/15">
-          <div className="flex gap-1.5 flex-wrap mb-3">
-            {PAIRS.map(pair => (
-              <button key={pair} onClick={() => { setSelectedPair(pair); setSignal(null); setMessage(null); setError(null); }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  selectedPair === pair ? "bg-yellow-500 text-black shadow-[0_0_12px_rgba(234,179,8,0.7)]" : "bg-white/10 text-gray-300 border border-white/10"
-                }`}>{pair}</button>
-            ))}
-          </div>
-          <div className="flex gap-1.5 flex-wrap mb-3">
-            {TIMEFRAMES.map(tf => (
-              <button key={tf} onClick={() => setSelectedTF(tf)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  selectedTF === tf ? "bg-yellow-500 text-black shadow-[0_0_12px_rgba(234,179,8,0.7)]" : "bg-white/10 text-gray-300 border border-white/10"
-                }`}>{tf}</button>
-            ))}
-          </div>
-          <div className="flex gap-1.5 flex-wrap mb-3">
-            {RR_OPTIONS.map(rr => (
-              <button key={rr} onClick={() => setSelectedRR(rr)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  selectedRR === rr ? "bg-yellow-500 text-black shadow-[0_0_12px_rgba(234,179,8,0.7)]" : "bg-white/10 text-gray-300 border border-white/10"
-                }`}>{rr}</button>
-            ))}
-          </div>
-          <button onClick={analyse} disabled={loading}
-            className="w-full bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 text-black font-bold py-3 rounded-xl text-sm transition-all shadow-[0_0_25px_rgba(234,179,8,0.5)]">
-            {loading ? "Analysing..." : `⚡ Analyse ${selectedPair}`}
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-1 mx-3 mt-3 bg-white/5 rounded-xl p-1">
-          {tabs.map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
-                activeTab === tab.id ? "bg-yellow-500 text-black" : "text-gray-400"
-              }`}>{tab.label}</button>
-          ))}
-        </div>
-
-        {/* Tab Content */}
-        <div className="flex-1 px-3 pb-6 mt-3">
-
-          {/* SIGNAL TAB */}
-          {activeTab === "signal" && (
-            <div className="flex flex-col gap-3">
-              {message && (
-                <div className="bg-blue-500/15 border border-blue-500/40 rounded-2xl p-3 text-blue-300 text-xs">
-                  📊 {message}
-                </div>
-              )}
-              {error && (
-                <div className="bg-red-500/15 border border-red-500/40 rounded-2xl p-3 text-red-300 text-xs">
-                  ⚠️ {error}
-                </div>
-              )}
-              {!signal && !message && !error && (
-                <div className="bg-[#111118]/80 rounded-2xl border border-white/15 p-8 text-center">
-                  <p className="text-4xl mb-3">⏳</p>
-                  <p className="text-white font-medium">No signal yet</p>
-                  <p className="text-gray-500 text-xs mt-1">Press Analyse to get a signal</p>
-                </div>
-              )}
-              {signal && (
-                <div className="bg-[#111118]/80 backdrop-blur-md rounded-2xl border border-white/15 overflow-hidden">
-                  <div className="flex items-center justify-between p-4 border-b border-white/10">
-                    <div>
-                      <p className="text-gray-400 text-xs mb-0.5">SMC • {signal.timeframe}</p>
-                      <p className="text-lg font-bold">{signal.pair}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className="text-xs text-gray-300">Conf: <span className="text-white font-bold">{signal.confidence}%</span></span>
-                      <span className={`px-4 py-1.5 rounded-lg font-bold text-sm ${
-                        signal.direction === "BUY"
-                          ? "bg-green-500/20 text-green-400 border border-green-500/40 shadow-[0_0_12px_rgba(74,222,128,0.5)]"
-                          : "bg-red-500/20 text-red-400 border border-red-500/40 shadow-[0_0_12px_rgba(248,113,113,0.5)]"
-                      }`}>{signal.direction}</span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-px bg-white/5 border-b border-white/10">
-                    <div className="bg-[#111118]/80 p-4 text-center">
-                      <p className="text-gray-400 text-xs mb-1">Entry</p>
-                      <p className="text-yellow-400 font-bold text-base drop-shadow-[0_0_8px_rgba(234,179,8,1)]">{signal.entry}</p>
-                    </div>
-                    <div className="bg-[#111118]/80 p-4 text-center">
-                      <p className="text-gray-400 text-xs mb-1">TP</p>
-                      <p className="text-green-400 font-bold text-base drop-shadow-[0_0_8px_rgba(74,222,128,1)]">{signal.takeProfit}</p>
-                    </div>
-                    <div className="bg-[#111118]/80 p-4 text-center">
-                      <p className="text-gray-400 text-xs mb-1">SL</p>
-                      <p className="text-red-400 font-bold text-base drop-shadow-[0_0_8px_rgba(248,113,113,1)]">{signal.stopLoss}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 p-4 border-b border-white/10">
-                    {[
-                      { label: "15m Bias", value: signal.trend, color: signal.trend?.includes("Bullish") ? "text-green-400" : "text-red-400" },
-                      { label: "R:R", value: signal.rr, color: "text-yellow-400" },
-                      { label: `${signal.htf || "15m"} RSI`, value: signal.htfRSI, color: "text-white" },
-                    { label: `${signal.ltf || "5m"} RSI`, value: signal.ltfRSI, color: "text-white" },
-                      { label: "EMA 50", value: signal.ema50 || "N/A", color: "text-white" },
-                      { label: "EMA OK", value: signal.emaConfirmed ? "✓ Yes" : "✗ No", color: signal.emaConfirmed ? "text-green-400" : "text-red-400" },
-                    ].map((item, i) => (
-                      <div key={i} className="bg-white/5 rounded-lg p-3 border border-white/10">
-                        <p className="text-gray-400 text-xs mb-1">{item.label}</p>
-                        <p className={`text-sm font-medium ${item.color}`}>{item.value}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="p-4 border-b border-white/10">
-                    <p className="text-gray-400 text-xs mb-2">Entry Signals</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {signal.reasons?.split(", ").map((reason, i) => (
-                        <Tag key={i} text={reason} color="bg-yellow-500/10 text-yellow-300 border-yellow-500/30" />
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="p-4 border-b border-white/10">
-                    <p className="text-gray-400 text-xs mb-2">Extra Confluence</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {signal.dominantTrend && <Tag text={`Dominant: ${signal.dominantTrend}`} color="bg-cyan-500/10 text-cyan-300 border-cyan-500/30" />}
-                    {signal.mss && <Tag text={signal.mss} color="bg-purple-500/10 text-purple-300 border-purple-500/30" />}
-                    {signal.idm && <Tag text={signal.idm} color="bg-blue-500/10 text-blue-300 border-blue-500/30" />}
-                    {signal.breaker && <Tag text={signal.breaker} color="bg-pink-500/10 text-pink-300 border-pink-500/30" />}
-                    {signal.sss && <Tag text={signal.sss} color="bg-yellow-500/10 text-yellow-300 border-yellow-500/30" />}
-                    {signal.trendlineSweep && <Tag text={signal.trendlineSweep} color="bg-green-500/10 text-green-300 border-green-500/30" />}
-                    {signal.supplyDemand && <Tag text={signal.supplyDemand} color="bg-orange-500/10 text-orange-300 border-orange-500/30" />}
-                    {signal.equalLevels && <Tag text={signal.equalLevels} color="bg-red-500/10 text-red-300 border-red-500/30" />}
-                    {signal.range && <Tag text={`${signal.range.position} ${signal.range.pct}%`} color="bg-indigo-500/10 text-indigo-300 border-indigo-500/30" />}
-                    {!signal.dominantTrend && !signal.mss && !signal.idm && !signal.breaker && !signal.sss && !signal.trendlineSweep && !signal.supplyDemand && !signal.equalLevels && (
-                      <span style={{ color: "#6b7280", fontSize: 11 }}>None detected</span>
-                    )}
-                    </div>
-                  </div>
-
-                  {signal.orderflow && (
-                    <div className="p-4 border-b border-white/10">
-                      <p className="text-gray-400 text-xs mb-2">Orderflow (CVD)</p>
-                      <div className="flex h-3 rounded-full overflow-hidden mb-2">
-                        <div className="bg-green-500" style={{ width: `${signal.orderflow.buyPct}%` }} />
-                        <div className="bg-red-500" style={{ width: `${signal.orderflow.sellPct}%` }} />
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-green-400">Buy: {signal.orderflow.buyPct}%</span>
-                        <span className={`font-medium ${signal.orderflow.trend === "positive" ? "text-green-400" : "text-red-400"}`}>
-                          {signal.orderflow.trend === "positive" ? "▲" : "▼"} {signal.orderflow.cvd} CVD
-                        </span>
-                        <span className="text-red-400">Sell: {signal.orderflow.sellPct}%</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="p-4">
-                    <p className="text-gray-400 text-xs mb-2">⚡ AI Analysis</p>
-                    <p className="text-gray-200 text-sm leading-relaxed">{signal.analysis}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* CHART TAB */}
-          {activeTab === "chart" && (
-            <div style={{ height: "70vh" }}>
-              <Chart signal={signal} interval={selectedTF} />
-            </div>
-          )}
-
-          {/* TOOLS TAB */}
-          {activeTab === "tools" && (
-            <div className="flex flex-col gap-3">
-              <PositionSize signal={signal} />
-              <SignalHistory />
-            </div>
-          )}
-
-          {/* MARKET TAB */}
-          {activeTab === "market" && (
-            <div className="flex flex-col gap-3">
-              <NewsFilter />
-              <MultiTimeframe pair={selectedPair} />
-              <Sentiment pair={selectedPair} />
-            </div>
-          )}
-
-        </div>
-      </div>
+      )}
+      <div ref={containerRef} style={{ width: "100%", height: "100%", borderRadius: 16, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)" }} />
     </div>
   );
 }

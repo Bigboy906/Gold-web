@@ -622,7 +622,35 @@ app.get("/price", async (req, res) => {
   }
 });
 
-app.post("/webhook", (req, res) => {
+app.get("/candles", async (req, res) => {
+  const pair = req.query.pair || "XAU/USD";
+  const interval = req.query.interval || "15min";
+  const cacheKey = `candles_${pair}_${interval}`;
+  const cached = getCached(cacheKey);
+  if (cached) return res.json({ candles: cached });
+
+  try {
+    const fetch = (await import("node-fetch")).default;
+    const intervalMap = { "5min": "5min", "15min": "15min", "30min": "30min", "1h": "1h", "4h": "4h" };
+    const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(pair)}&interval=${intervalMap[interval] || "15min"}&outputsize=100&apikey=${TWELVE_KEY}`;
+    const r = await fetch(url);
+    const data = await r.json();
+    if (data.status === "error" || !data.values) return res.json({ candles: [] });
+
+    const candles = data.values.map(v => ({
+      time: Math.floor(new Date(v.datetime).getTime() / 1000),
+      open: parseFloat(v.open),
+      high: parseFloat(v.high),
+      low: parseFloat(v.low),
+      close: parseFloat(v.close),
+    })).reverse();
+
+    setCache(cacheKey, candles);
+    res.json({ candles });
+  } catch (err) {
+    res.json({ candles: [] });
+  }
+});app.post("/webhook", (req, res) => {
   latestSignal = { ...req.body, timestamp: new Date().toISOString() };
   res.json({ status: "ok" });
 });
