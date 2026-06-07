@@ -310,13 +310,15 @@ export default function App() {
 
                   <div className="grid grid-cols-2 gap-2 p-4 border-b border-white/10">
                     {[
-                      { label: "15m Bias", value: signal.trend, color: signal.trend?.includes("Bullish") ? "text-green-400" : "text-red-400" },
-                      { label: "R:R", value: signal.rr, color: "text-yellow-400" },
-                      { label: `${signal.htf || "15m"} RSI`, value: signal.htfRSI, color: "text-white" },
+                    { label: `${signal.htf || "15m"} Bias`, value: signal.trend, color: signal.trend?.includes("Bullish") ? "text-green-400" : "text-red-400" },
+                    { label: "R:R", value: signal.rr, color: "text-yellow-400" },
+                    { label: `${signal.htf || "15m"} RSI`, value: signal.htfRSI, color: "text-white" },
                     { label: `${signal.ltf || "5m"} RSI`, value: signal.ltfRSI, color: "text-white" },
-                      { label: "EMA 50", value: signal.ema50 || "N/A", color: "text-white" },
-                      { label: "EMA OK", value: signal.emaConfirmed ? "✓ Yes" : "✗ No", color: signal.emaConfirmed ? "text-green-400" : "text-red-400" },
-                    ].map((item, i) => (
+                    { label: "Market State", value: signal.marketState || "N/A", color: signal.marketState === "BREAKOUT" ? "text-orange-400" : signal.marketState === "TREND" ? "text-blue-400" : "text-gray-400" },
+                    { label: "EMA Ribbon", value: signal.emaAligned ? (signal.emaConfirmed ? "✓ Aligned" : "✗ Against") : "Neutral", color: signal.emaAligned && signal.emaConfirmed ? "text-green-400" : "text-red-400" },
+                    { label: "Structure", value: signal.structureLabels || "N/A", color: "text-purple-400" },
+                    { label: "Dominant", value: signal.dominantTrend || "N/A", color: signal.dominantTrend === "Bullish" ? "text-green-400" : signal.dominantTrend === "Bearish" ? "text-red-400" : "text-gray-400" },
+                  ].map((item, i) => (
                       <div key={i} className="bg-white/5 rounded-lg p-3 border border-white/10">
                         <p className="text-gray-400 text-xs mb-1">{item.label}</p>
                         <p className={`text-sm font-medium ${item.color}`}>{item.value}</p>
