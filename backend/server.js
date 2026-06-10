@@ -507,8 +507,79 @@ app.get("/smc/:rr", async (req, res) => {
     }
 
     if (matchingSignals.length === 0) {
+      // Calculate limit order coordinates
+      const lastCandle = ltfCandles[ltfCandles.length - 1];
+      const currentPrice = lastCandle.close;
+      const ltfATRVal = calcATR(ltfCandles);
+      const { swingHighs, swingLows } = detectSwings(ltfCandles, 3);
+      const ltfSD = detectSupplyDemand(ltfCandles);
+      const ltfFVG = detectFVGWith50(ltfCandles);
+      const ltfEHL = detectEqualHighsLows(ltfCandles);
+
+      // BUY LIMIT — nearest demand zone or swing low
+      let buyLimit = null;
+      let buyLimitSource = null;
+      if (ltfSD?.demandZone) {
+        buyLimit = ltfSD.demandZone.high;
+        buyLimitSource = "Demand Zone";
+      } else if (swingLows.length > 0) {
+        buyLimit = swingLows[swingLows.length - 1].price + (ltfATRVal * 0.2);
+        buyLimitSource = "Swing Low";
+      }
+      if (ltfFVG?.direction === "BUY") {
+        buyLimit = ltfFVG.mid;
+        buyLimitSource = "FVG 50%";
+      }
+      if (ltfEHL?.equalLows) {
+        buyLimit = ltfEHL.equalLows.level + (ltfATRVal * 0.1);
+        buyLimitSource = "Equal Lows";
+      }
+
+      // SELL LIMIT — nearest supply zone or swing high
+      let sellLimit = null;
+      let sellLimitSource = null;
+      if (ltfSD?.supplyZone) {
+        sellLimit = ltfSD.supplyZone.low;
+        sellLimitSource = "Supply Zone";
+      } else if (swingHighs.length > 0) {
+        sellLimit = swingHighs[swingHighs.length - 1].price - (ltfATRVal * 0.2);
+        sellLimitSource = "Swing High";
+      }
+      if (ltfFVG?.direction === "SELL") {
+        sellLimit = ltfFVG.mid;
+        sellLimitSource = "FVG 50%";
+      }
+      if (ltfEHL?.equalHighs) {
+        sellLimit = ltfEHL.equalHighs.level - (ltfATRVal * 0.1);
+        sellLimitSource = "Equal Highs";
+      }
+
+      // Calculate SL and TP for each limit
+      const buySL = buyLimit ? buyLimit - (ltfATRVal * 1.5) : null;
+      const buyTP = buyLimit && buySL ? calcTP(buyLimit, buySL, rr, "BUY") : null;
+      const sellSL = sellLimit ? sellLimit + (ltfATRVal * 1.5) : null;
+      const sellTP = sellLimit && sellSL ? calcTP(sellLimit, sellSL, rr, "SELL") : null;
+
       return res.json({
-        message: `${pair} ${htf} bias: ${biasDirection} (${structureBias}). Market: ${marketState}. Structure: ${structureLabels?.lastStructure || "N/A"}. RSI: ${htfRSI.toFixed(1)}. ${htfRange ? `Price in ${htfRange.position} (${htfRange.pct}%).` : ""} Waiting for ${ltf} entry...`
+        message: `${pair} ${htf} bias: ${biasDirection} (${structureBias}). Market: ${marketState}. RSI: ${htfRSI.toFixed(1)}. ${htfRange ? `Price in ${htfRange.position} (${htfRange.pct}%).` : ""} Waiting for ${ltf} entry...`,
+        limitOrders: {
+          currentPrice: currentPrice.toFixed(2),
+          bias: biasDirection,
+          buyLimit: buyLimit ? {
+            price: buyLimit.toFixed(2),
+            source: buyLimitSource,
+            sl: buySL ? buySL.toFixed(2) : null,
+            tp: buyTP ? buyTP.toFixed(2) : null,
+            rr,
+          } : null,
+          sellLimit: sellLimit ? {
+            price: sellLimit.toFixed(2),
+            source: sellLimitSource,
+            sl: sellSL ? sellSL.toFixed(2) : null,
+            tp: sellTP ? sellTP.toFixed(2) : null,
+            rr,
+          } : null,
+        }
       });
     }
 

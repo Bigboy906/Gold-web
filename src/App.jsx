@@ -127,7 +127,10 @@ export default function App() {
       const data = await res.json();
       if (data.error) setError(data.error);
       else if (data.message) setMessage(data.message);
-      else {
+     else if (data.limitOrders) {
+        setSignal(data);
+        setMessage(data.message);
+      } else {
         setSignal(data);
         setActiveTab("signal");
         const saved = localStorage.getItem("signalHistory");
@@ -259,11 +262,66 @@ export default function App() {
           {/* SIGNAL TAB */}
           {activeTab === "signal" && (
             <div className="flex flex-col gap-3">
-              {message && (
-                <div className="bg-blue-500/15 border border-blue-500/40 rounded-2xl p-3 text-blue-300 text-xs">
-                  📊 {message}
+             {message && (
+              <div style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.4)", borderRadius: 16, padding: 12, color: "#93c5fd", fontSize: 12 }}>
+                📊 {message}
+              </div>
+            )}
+
+            {signal?.limitOrders && (
+              <div style={{ background: "rgba(17,17,24,0.9)", borderRadius: 16, border: "1px solid rgba(255,255,255,0.15)", overflow: "hidden" }}>
+                <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.1)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <p style={{ color: "#9ca3af", fontSize: 10, textTransform: "uppercase", letterSpacing: 1 }}>📍 Limit Order Coordinates</p>
+                  <span style={{ fontSize: 10, color: "#6b7280" }}>Current: <strong style={{ color: "#f59e0b" }}>{signal.limitOrders.currentPrice}</strong></span>
                 </div>
-              )}
+
+                {signal.limitOrders.buyLimit && (
+                  <div style={{ padding: 12, borderBottom: "1px solid rgba(255,255,255,0.1)", background: "rgba(34,197,94,0.05)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <span style={{ color: "#4ade80", fontWeight: "bold", fontSize: 12 }}>🟢 BUY LIMIT</span>
+                      <span style={{ color: "#6b7280", fontSize: 10 }}>{signal.limitOrders.buyLimit.source}</span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+                      <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: 8, textAlign: "center" }}>
+                        <p style={{ color: "#6b7280", fontSize: 9, marginBottom: 2 }}>ENTRY</p>
+                        <p style={{ color: "#f59e0b", fontWeight: "bold", fontSize: 12 }}>{signal.limitOrders.buyLimit.price}</p>
+                      </div>
+                      <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: 8, textAlign: "center" }}>
+                        <p style={{ color: "#6b7280", fontSize: 9, marginBottom: 2 }}>TP</p>
+                        <p style={{ color: "#4ade80", fontWeight: "bold", fontSize: 12 }}>{signal.limitOrders.buyLimit.tp}</p>
+                      </div>
+                      <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: 8, textAlign: "center" }}>
+                        <p style={{ color: "#6b7280", fontSize: 9, marginBottom: 2 }}>SL</p>
+                        <p style={{ color: "#f87171", fontWeight: "bold", fontSize: 12 }}>{signal.limitOrders.buyLimit.sl}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {signal.limitOrders.sellLimit && (
+                  <div style={{ padding: 12, background: "rgba(239,68,68,0.05)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <span style={{ color: "#f87171", fontWeight: "bold", fontSize: 12 }}>🔴 SELL LIMIT</span>
+                      <span style={{ color: "#6b7280", fontSize: 10 }}>{signal.limitOrders.sellLimit.source}</span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+                      <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: 8, textAlign: "center" }}>
+                        <p style={{ color: "#6b7280", fontSize: 9, marginBottom: 2 }}>ENTRY</p>
+                        <p style={{ color: "#f59e0b", fontWeight: "bold", fontSize: 12 }}>{signal.limitOrders.sellLimit.price}</p>
+                      </div>
+                      <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: 8, textAlign: "center" }}>
+                        <p style={{ color: "#6b7280", fontSize: 9, marginBottom: 2 }}>TP</p>
+                        <p style={{ color: "#4ade80", fontWeight: "bold", fontSize: 12 }}>{signal.limitOrders.sellLimit.tp}</p>
+                      </div>
+                      <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: 8, textAlign: "center" }}>
+                        <p style={{ color: "#6b7280", fontSize: 9, marginBottom: 2 }}>SL</p>
+                        <p style={{ color: "#f87171", fontWeight: "bold", fontSize: 12 }}>{signal.limitOrders.sellLimit.sl}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
               {error && (
                 <div className="bg-red-500/15 border border-red-500/40 rounded-2xl p-3 text-red-300 text-xs">
                   ⚠️ {error}
