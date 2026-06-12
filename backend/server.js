@@ -33,11 +33,15 @@ async function sendSignalEmail(signal) {
       <h3 style="color: white;">${direction} — ${signal.pair}</h3>
       <p style="color: #9ca3af;">Timeframe: ${signal.timeframe} | Confidence: ${signal.confidence}%</p>
       <p style="color: #9ca3af;">Market State: <strong style="color: white;">${signal.marketState}</strong></p>
+      ${signal.chartPattern ? `<p style="color: #9ca3af;">Pattern: <strong style="color: #a78bfa;">${signal.chartPattern}</strong></p>` : ""}
+      ${signal.exhaustion ? `<p style="color: #ef4444;">⚠️ Trend Exhaustion Detected</p>` : ""}
       <table style="width:100%; border-collapse: collapse; margin: 16px 0;">
         <tr><td style="padding: 8px; color: #f59e0b; border: 1px solid #333;">Entry</td><td style="padding: 8px; color: white; border: 1px solid #333;">${signal.entry}</td></tr>
-        <tr><td style="padding: 8px; color: #22c55e; border: 1px solid #333;">Take Profit</td><td style="padding: 8px; color: white; border: 1px solid #333;">${signal.takeProfit}</td></tr>
+        <tr><td style="padding: 8px; color: #22c55e; border: 1px solid #333;">TP1</td><td style="padding: 8px; color: white; border: 1px solid #333;">${signal.tp1}</td></tr>
+        <tr><td style="padding: 8px; color: #22c55e; border: 1px solid #333;">TP2</td><td style="padding: 8px; color: white; border: 1px solid #333;">${signal.tp2}</td></tr>
+        <tr><td style="padding: 8px; color: #22c55e; border: 1px solid #333;">TP3</td><td style="padding: 8px; color: white; border: 1px solid #333;">${signal.tp3}</td></tr>
         <tr><td style="padding: 8px; color: #ef4444; border: 1px solid #333;">Stop Loss</td><td style="padding: 8px; color: white; border: 1px solid #333;">${signal.stopLoss}</td></tr>
-        <tr><td style="padding: 8px; color: #9ca3af; border: 1px solid #333;">R:R</td><td style="padding: 8px; color: white; border: 1px solid #333;">${signal.rr}</td></tr>
+        <tr><td style="padding: 8px; color: #9ca3af; border: 1px solid #333;">Trailing Stop</td><td style="padding: 8px; color: white; border: 1px solid #333;">${signal.trailingStop}</td></tr>
       </table>
       <p style="color: #9ca3af; font-size: 13px;"><strong style="color: #a78bfa;">Bias:</strong> ${signal.trend}</p>
       <p style="color: #9ca3af; font-size: 13px;"><strong style="color: #a78bfa;">Entry Reasons:</strong> ${signal.reasons}</p>
@@ -49,7 +53,7 @@ async function sendSignalEmail(signal) {
     await resend.emails.send({
       from: "GoldSignal <onboarding@resend.dev>",
       to: ["samwelkimani659@gmail.com"],
-      subject: `⚡ Signal: ${signal.direction} ${signal.pair} @ ${signal.entry} | ${signal.marketState}`,
+      subject: `⚡ ${signal.direction} ${signal.pair} @ ${signal.entry} | ${signal.confidence}% | ${signal.marketState}`,
       html,
     });
     console.log("Email sent successfully");
@@ -61,7 +65,7 @@ async function sendSignalEmail(signal) {
 async function fetchCandles(pair, interval, outputsize = 100) {
   const cacheKey = `${pair}_${interval}_${outputsize}`;
   const cached = getCached(cacheKey);
-  if (cached) { console.log(`Cache hit: ${cacheKey}`); return cached; }
+  if (cached) return cached;
   const fetch = (await import("node-fetch")).default;
   const intervalMap = { "5m": "5min", "15m": "15min", "30m": "30min", "1H": "1h", "4H": "4h" };
   const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(pair)}&interval=${intervalMap[interval]}&outputsize=${outputsize}&apikey=${TWELVE_KEY}`;
@@ -106,7 +110,6 @@ function calcATR(candles, period = 14) {
   return atr / period;
 }
 
-// EMA RIBBON — 21, 34, 50
 function calcEMARibbon(candles) {
   const ema21 = calcEMA(candles, 21);
   const ema34 = calcEMA(candles, 34);
@@ -118,65 +121,17 @@ function calcEMARibbon(candles) {
   return { ema21, ema34, ema50, ema200, bullish, bearish, aligned: bullish || bearish };
 }
 
-// MARKET STATE — BREAKOUT, TREND, RANGE
 function detectMarketState(candles) {
   if (candles.length < 20) return "UNKNOWN";
   const len = candles.length;
-  const lookback = candles.slice(len - 10);
   const swingHigh = Math.max(...candles.slice(len - 11, len - 1).map(c => c.high));
   const swingLow = Math.min(...candles.slice(len - 11, len - 1).map(c => c.low));
   const last = candles[len - 1];
-
   const ema21 = calcEMA(candles, 21);
   const ema50 = calcEMA(candles, 50);
-
-  // Breakout — price breaks above/below swing high/low
-  if (last.close > swingHigh) return "BREAKOUT";
-  if (last.close < swingLow) return "BREAKOUT";
-
-  // Trend — EMAs aligned
-  if (ema21 && ema50) {
-    if (ema21 > ema50 || ema21 < ema50) return "TREND";
-  }
-
+  if (last.close > swingHigh || last.close < swingLow) return "BREAKOUT";
+  if (ema21 && ema50 && (ema21 > ema50 || ema21 < ema50)) return "TREND";
   return "RANGE";
-}
-
-// HH/HL/LH/LL STRUCTURE
-function detectStructureLabels(candles) {
-  if (candles.length < 10) return null;
-  const { swingHighs, swingLows } = detectSwings(candles, 3);
-
-  let structure = [];
-  let lastHigh = null, lastLow = null;
-
-  for (const sh of swingHighs) {
-    if (lastHigh === null) {
-      structure.push({ type: "H", price: sh.price });
-    } else if (sh.price > lastHigh) {
-      structure.push({ type: "HH", price: sh.price });
-    } else {
-      structure.push({ type: "LH", price: sh.price });
-    }
-    lastHigh = sh.price;
-  }
-
-  for (const sl of swingLows) {
-    if (lastLow === null) {
-      structure.push({ type: "L", price: sl.price });
-    } else if (sl.price > lastLow) {
-      structure.push({ type: "HL", price: sl.price });
-    } else {
-      structure.push({ type: "LL", price: sl.price });
-    }
-    lastLow = sl.price;
-  }
-
-  // Get last 4 structure points
-  const recent = structure.slice(-4);
-  const lastStructure = recent.map(s => s.type).join(" → ");
-
-  return { structure: recent, lastStructure };
 }
 
 function detectDominantTrend(candles) {
@@ -203,6 +158,260 @@ function detectSwings(candles, lookback = 3) {
   }
   return { swingHighs, swingLows };
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CHART PATTERNS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function detectDoubleTop(candles) {
+  const { swingHighs, swingLows } = detectSwings(candles, 3);
+  if (swingHighs.length < 2 || swingLows.length < 1) return null;
+  const h1 = swingHighs[swingHighs.length - 1];
+  const h2 = swingHighs[swingHighs.length - 2];
+  const mid = swingLows[swingLows.length - 1];
+  const tolerance = 0.003;
+  if (Math.abs(h1.price - h2.price) / h1.price < tolerance && mid.index > h2.index && mid.index < h1.index) {
+    const last = candles[candles.length - 1];
+    if (last.close < mid.price) {
+      return { type: "Double Top", direction: "SELL", target: mid.price - (h1.price - mid.price) };
+    }
+  }
+  return null;
+}
+
+function detectDoubleBottom(candles) {
+  const { swingHighs, swingLows } = detectSwings(candles, 3);
+  if (swingLows.length < 2 || swingHighs.length < 1) return null;
+  const l1 = swingLows[swingLows.length - 1];
+  const l2 = swingLows[swingLows.length - 2];
+  const mid = swingHighs[swingHighs.length - 1];
+  const tolerance = 0.003;
+  if (Math.abs(l1.price - l2.price) / l1.price < tolerance && mid.index > l2.index && mid.index < l1.index) {
+    const last = candles[candles.length - 1];
+    if (last.close > mid.price) {
+      return { type: "Double Bottom", direction: "BUY", target: mid.price + (mid.price - l1.price) };
+    }
+  }
+  return null;
+}
+
+function detectHeadAndShoulders(candles) {
+  const { swingHighs, swingLows } = detectSwings(candles, 3);
+  if (swingHighs.length < 3 || swingLows.length < 2) return null;
+  const rs = swingHighs[swingHighs.length - 1];
+  const head = swingHighs[swingHighs.length - 2];
+  const ls = swingHighs[swingHighs.length - 3];
+  const neckR = swingLows[swingLows.length - 1];
+  const neckL = swingLows[swingLows.length - 2];
+  const tolerance = 0.005;
+  if (head.price > rs.price && head.price > ls.price && Math.abs(ls.price - rs.price) / ls.price < tolerance) {
+    const neckline = (neckL.price + neckR.price) / 2;
+    const last = candles[candles.length - 1];
+    if (last.close < neckline) {
+      return { type: "Head & Shoulders", direction: "SELL", target: neckline - (head.price - neckline) };
+    }
+  }
+  return null;
+}
+
+function detectInverseHeadAndShoulders(candles) {
+  const { swingHighs, swingLows } = detectSwings(candles, 3);
+  if (swingLows.length < 3 || swingHighs.length < 2) return null;
+  const rs = swingLows[swingLows.length - 1];
+  const head = swingLows[swingLows.length - 2];
+  const ls = swingLows[swingLows.length - 3];
+  const neckR = swingHighs[swingHighs.length - 1];
+  const neckL = swingHighs[swingHighs.length - 2];
+  const tolerance = 0.005;
+  if (head.price < rs.price && head.price < ls.price && Math.abs(ls.price - rs.price) / ls.price < tolerance) {
+    const neckline = (neckL.price + neckR.price) / 2;
+    const last = candles[candles.length - 1];
+    if (last.close > neckline) {
+      return { type: "Inverse H&S", direction: "BUY", target: neckline + (neckline - head.price) };
+    }
+  }
+  return null;
+}
+
+function detectTripleTop(candles) {
+  const { swingHighs, swingLows } = detectSwings(candles, 3);
+  if (swingHighs.length < 3) return null;
+  const h1 = swingHighs[swingHighs.length - 1];
+  const h2 = swingHighs[swingHighs.length - 2];
+  const h3 = swingHighs[swingHighs.length - 3];
+  const tolerance = 0.004;
+  if (Math.abs(h1.price - h2.price) / h1.price < tolerance && Math.abs(h2.price - h3.price) / h2.price < tolerance) {
+    const neckline = Math.min(...swingLows.slice(-2).map(s => s.price));
+    const last = candles[candles.length - 1];
+    if (last.close < neckline) {
+      return { type: "Triple Top", direction: "SELL", target: neckline - (h1.price - neckline) };
+    }
+  }
+  return null;
+}
+
+function detectTripleBottom(candles) {
+  const { swingHighs, swingLows } = detectSwings(candles, 3);
+  if (swingLows.length < 3) return null;
+  const l1 = swingLows[swingLows.length - 1];
+  const l2 = swingLows[swingLows.length - 2];
+  const l3 = swingLows[swingLows.length - 3];
+  const tolerance = 0.004;
+  if (Math.abs(l1.price - l2.price) / l1.price < tolerance && Math.abs(l2.price - l3.price) / l2.price < tolerance) {
+    const neckline = Math.max(...swingHighs.slice(-2).map(s => s.price));
+    const last = candles[candles.length - 1];
+    if (last.close > neckline) {
+      return { type: "Triple Bottom", direction: "BUY", target: neckline + (neckline - l1.price) };
+    }
+  }
+  return null;
+}
+
+function detectFlag(candles) {
+  if (candles.length < 20) return null;
+  const len = candles.length;
+  const poleCandles = candles.slice(len - 20, len - 10);
+  const flagCandles = candles.slice(len - 10);
+  const poleMove = poleCandles[poleCandles.length - 1].close - poleCandles[0].close;
+  const flagHigh = Math.max(...flagCandles.map(c => c.high));
+  const flagLow = Math.min(...flagCandles.map(c => c.low));
+  const flagRange = flagHigh - flagLow;
+  const last = candles[len - 1];
+  if (poleMove > 0 && flagRange < Math.abs(poleMove) * 0.5) {
+    if (last.close > flagHigh) return { type: "Bullish Flag", direction: "BUY", target: last.close + Math.abs(poleMove) };
+  }
+  if (poleMove < 0 && flagRange < Math.abs(poleMove) * 0.5) {
+    if (last.close < flagLow) return { type: "Bearish Flag", direction: "SELL", target: last.close - Math.abs(poleMove) };
+  }
+  return null;
+}
+
+function detectWedge(candles) {
+  const { swingHighs, swingLows } = detectSwings(candles, 3);
+  if (swingHighs.length < 2 || swingLows.length < 2) return null;
+  const h1 = swingHighs[swingHighs.length - 1];
+  const h2 = swingHighs[swingHighs.length - 2];
+  const l1 = swingLows[swingLows.length - 1];
+  const l2 = swingLows[swingLows.length - 2];
+  const slopeHigh = (h1.price - h2.price) / (h1.index - h2.index);
+  const slopeLow = (l1.price - l2.price) / (l1.index - l2.index);
+  if (slopeHigh > 0 && slopeLow > 0 && slopeLow > slopeHigh) {
+    return { type: "Rising Wedge", direction: "SELL", target: l2.price };
+  }
+  if (slopeHigh < 0 && slopeLow < 0 && slopeLow < slopeHigh) {
+    return { type: "Falling Wedge", direction: "BUY", target: h2.price };
+  }
+  return null;
+}
+
+function detectTriangle(candles) {
+  const { swingHighs, swingLows } = detectSwings(candles, 3);
+  if (swingHighs.length < 2 || swingLows.length < 2) return null;
+  const h1 = swingHighs[swingHighs.length - 1];
+  const h2 = swingHighs[swingHighs.length - 2];
+  const l1 = swingLows[swingLows.length - 1];
+  const l2 = swingLows[swingLows.length - 2];
+  const slopeHigh = (h1.price - h2.price) / (h1.index - h2.index);
+  const slopeLow = (l1.price - l2.price) / (l1.index - l2.index);
+  const flatTol = 0.0005;
+  if (slopeHigh < 0 && slopeLow > 0) return { type: "Symmetrical Triangle", direction: "BREAKOUT", target: null };
+  if (Math.abs(slopeHigh) < flatTol && slopeLow > 0) return { type: "Ascending Triangle", direction: "BUY", target: h1.price + (h1.price - l1.price) };
+  if (slopeHigh < 0 && Math.abs(slopeLow) < flatTol) return { type: "Descending Triangle", direction: "SELL", target: l1.price - (h1.price - l1.price) };
+  return null;
+}
+
+function detectChartPattern(candles) {
+  return detectDoubleTop(candles) ||
+    detectDoubleBottom(candles) ||
+    detectHeadAndShoulders(candles) ||
+    detectInverseHeadAndShoulders(candles) ||
+    detectTripleTop(candles) ||
+    detectTripleBottom(candles) ||
+    detectFlag(candles) ||
+    detectWedge(candles) ||
+    detectTriangle(candles) ||
+    null;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// RENKO MATRIX FEATURES
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function detectTrendExhaustion(candles) {
+  if (candles.length < 20) return false;
+  let consecutiveBull = 0, consecutiveBear = 0;
+  let maxBull = 0, maxBear = 0;
+  const streaks = [];
+  for (let i = 1; i < candles.length; i++) {
+    if (candles[i].close > candles[i-1].close) {
+      consecutiveBull++;
+      consecutiveBear = 0;
+    } else {
+      consecutiveBear++;
+      consecutiveBull = 0;
+    }
+    if (consecutiveBull > 2) streaks.push(consecutiveBull);
+    if (consecutiveBear > 2) streaks.push(consecutiveBear);
+    maxBull = Math.max(maxBull, consecutiveBull);
+    maxBear = Math.max(maxBear, consecutiveBear);
+  }
+  if (streaks.length < 5) return false;
+  const avg = streaks.reduce((a, b) => a + b, 0) / streaks.length;
+  const std = Math.sqrt(streaks.map(s => (s - avg) ** 2).reduce((a, b) => a + b, 0) / streaks.length);
+  const currentStreak = Math.max(consecutiveBull, consecutiveBear);
+  if (std > 0 && (currentStreak - avg) / std > 2.0) return true;
+  return false;
+}
+
+function detectWickClusters(candles) {
+  if (candles.length < 5) return null;
+  const len = candles.length;
+  let bearWickCount = 0, bullWickCount = 0;
+  const atr = calcATR(candles);
+  for (let i = len - 5; i < len; i++) {
+    const c = candles[i];
+    const body = Math.abs(c.close - c.open);
+    const upperWick = c.high - Math.max(c.close, c.open);
+    const lowerWick = Math.min(c.close, c.open) - c.low;
+    if (upperWick > body * 1.5) bearWickCount++;
+    if (lowerWick > body * 1.5) bullWickCount++;
+  }
+  if (bearWickCount >= 3) return { type: "Bearish Wick Cluster", direction: "SELL" };
+  if (bullWickCount >= 3) return { type: "Bullish Wick Cluster", direction: "BUY" };
+  return null;
+}
+
+function calcThreeTPs(entry, sl, direction) {
+  const risk = Math.abs(entry - sl);
+  if (direction === "BUY") {
+    return {
+      tp1: entry + risk * 1.5,
+      tp2: entry + risk * 3.0,
+      tp3: entry + risk * 5.0,
+    };
+  } else {
+    return {
+      tp1: entry - risk * 1.5,
+      tp2: entry - risk * 3.0,
+      tp3: entry - risk * 5.0,
+    };
+  }
+}
+
+function calcTrailingStop(candles, direction, atr) {
+  const len = candles.length;
+  if (direction === "BUY") {
+    const recentLow = Math.min(...candles.slice(len - 5).map(c => c.low));
+    return recentLow - atr * 0.5;
+  } else {
+    const recentHigh = Math.max(...candles.slice(len - 5).map(c => c.high));
+    return recentHigh + atr * 0.5;
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// EXISTING SMC DETECTORS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function detectBOS(candles) {
   if (candles.length < 10) return null;
@@ -256,8 +465,6 @@ function detectRange(candles) {
   return { rangeHigh, rangeLow, mid, position, pct };
 }
 
-function detectPremiumDiscount(candles) { return detectRange(candles); }
-
 function detectFVGWith50(candles) {
   if (candles.length < 3) return null;
   const len = candles.length;
@@ -279,8 +486,8 @@ function detectTrendlineLiquiditySweep(candles) {
     if (lookback[i].low < lookback[i-1].low && lookback[i].low < lookback[i+1].low) trendLows.push(lookback[i].low);
   }
   const last = candles[len - 1], prev = candles[len - 2];
-  if (trendHighs.length >= 2 && prev.high > Math.max(...trendHighs) && last.close < Math.max(...trendHighs)) return { type: "Bearish Trendline Liquidity Sweep", direction: "SELL" };
-  if (trendLows.length >= 2 && prev.low < Math.min(...trendLows) && last.close > Math.min(...trendLows)) return { type: "Bullish Trendline Liquidity Sweep", direction: "BUY" };
+  if (trendHighs.length >= 2 && prev.high > Math.max(...trendHighs) && last.close < Math.max(...trendHighs)) return { type: "Bearish Trendline Sweep", direction: "SELL" };
+  if (trendLows.length >= 2 && prev.low < Math.min(...trendLows) && last.close > Math.min(...trendLows)) return { type: "Bullish Trendline Sweep", direction: "BUY" };
   return null;
 }
 
@@ -312,8 +519,8 @@ function detectSupplyDemand(candles) {
   let demandZone = null, supplyZone = null;
   for (let i = 1; i < lookback.length - 1; i++) {
     const curr = lookback[i], next = lookback[i+1];
-    if (curr.close > curr.open && next.close > next.open && next.close - next.open > (next.high - next.low) * 0.6) demandZone = { high: curr.high, low: curr.low, direction: "BUY", type: "Demand Zone" };
-    if (curr.close < curr.open && next.close < next.open && next.open - next.close > (next.high - next.low) * 0.6) supplyZone = { high: curr.high, low: curr.low, direction: "SELL", type: "Supply Zone" };
+    if (curr.close > curr.open && next.close > next.open && next.close - next.open > (next.high - next.low) * 0.6) demandZone = { high: curr.high, low: curr.low, direction: "BUY" };
+    if (curr.close < curr.open && next.close < next.open && next.open - next.close > (next.high - next.low) * 0.6) supplyZone = { high: curr.high, low: curr.low, direction: "SELL" };
   }
   return { demandZone, supplyZone };
 }
@@ -386,6 +593,27 @@ function detectRejectionWick(candles) {
   return null;
 }
 
+function detectStructureLabels(candles) {
+  if (candles.length < 10) return null;
+  const { swingHighs, swingLows } = detectSwings(candles, 3);
+  let structure = [];
+  let lastHigh = null, lastLow = null;
+  for (const sh of swingHighs) {
+    if (lastHigh === null) structure.push({ type: "H", price: sh.price });
+    else if (sh.price > lastHigh) structure.push({ type: "HH", price: sh.price });
+    else structure.push({ type: "LH", price: sh.price });
+    lastHigh = sh.price;
+  }
+  for (const sl of swingLows) {
+    if (lastLow === null) structure.push({ type: "L", price: sl.price });
+    else if (sl.price > lastLow) structure.push({ type: "HL", price: sl.price });
+    else structure.push({ type: "LL", price: sl.price });
+    lastLow = sl.price;
+  }
+  const recent = structure.slice(-4);
+  return { structure: recent, lastStructure: recent.map(s => s.type).join(" → ") };
+}
+
 function calcOrderflow(candles) {
   let buyVolume = 0, sellVolume = 0, cvd = 0;
   candles.slice(-20).forEach(c => {
@@ -405,25 +633,27 @@ function calcTP(entry, sl, rr, direction) {
   return direction === "BUY" ? entry + risk * (rrMap[rr] || 2) : entry - risk * (rrMap[rr] || 2);
 }
 
-function buildAnalysis(htfBias, dominantTrend, matchingSignals, biasDirection, htfRSI, ltfRSI, emaRibbon, entry, stopLoss, takeProfit, rr, pair, extraContext, orderflow, htf, ltf, range, marketState, structureLabels) {
+function buildAnalysis(htfBias, dominantTrend, matchingSignals, biasDirection, htfRSI, ltfRSI, emaRibbon, entry, stopLoss, tp1, tp2, tp3, rr, pair, extraContext, orderflow, htf, ltf, range, marketState, structureLabels, chartPattern, exhaustion, wickCluster) {
   const dir = biasDirection === "BUY" ? "bullish" : "bearish";
   const reasons = matchingSignals.map(s => s.type).join(", ");
-  const emaText = emaRibbon?.aligned ? `EMA ribbon is ${emaRibbon.bullish ? "bullishly" : "bearishly"} aligned (21 > 34 > 50).` : "EMA ribbon mixed.";
-  const rsiText = `${htf} RSI at ${htfRSI.toFixed(1)}, ${ltf} RSI at ${ltfRSI.toFixed(1)}.`;
-  const trendText = dominantTrend ? `Dominant trend: ${dominantTrend}.` : "";
-  const rangeText = range ? `Price in ${range.position} (${range.pct}% of range).` : "";
-  const stateText = marketState ? `Market state: ${marketState}.` : "";
+  const emaText = emaRibbon?.aligned ? `EMA ribbon ${emaRibbon.bullish ? "bullishly" : "bearishly"} aligned.` : "EMA ribbon mixed.";
+  const rsiText = `${htf} RSI ${htfRSI.toFixed(1)}, ${ltf} RSI ${ltfRSI.toFixed(1)}.`;
+  const trendText = dominantTrend ? `Dominant: ${dominantTrend}.` : "";
+  const rangeText = range ? `Price in ${range.position} (${range.pct}%).` : "";
+  const stateText = `Market: ${marketState}.`;
   const structureText = structureLabels?.lastStructure ? `Structure: ${structureLabels.lastStructure}.` : "";
+  const patternText = chartPattern ? `Chart pattern: ${chartPattern.type}.` : "";
+  const exhaustionText = exhaustion ? "⚠️ Trend exhaustion detected." : "";
+  const wickText = wickCluster ? `${wickCluster.type} detected.` : "";
   const extraText = extraContext.length > 0 ? `Confluences: ${extraContext.join(", ")}.` : "";
-  const flowText = orderflow ? `Orderflow: ${orderflow.buyPct}% buying vs ${orderflow.sellPct}% selling.` : "";
-  return `${pair} shows ${htfBias} on ${htf}. ${stateText} ${trendText} ${structureText} ${rangeText} ${rsiText} ${emaText} ${extraText} ${flowText} ${ltf} entry: ${reasons}. Entry ${entry.toFixed(2)}, SL ${stopLoss.toFixed(2)}, TP ${takeProfit.toFixed(2)} (${rr}).`;
+  const flowText = `Orderflow: ${orderflow.buyPct}% buying vs ${orderflow.sellPct}% selling.`;
+  return `${pair} ${htfBias} on ${htf}. ${stateText} ${trendText} ${structureText} ${rangeText} ${rsiText} ${emaText} ${patternText} ${exhaustionText} ${wickText} ${extraText} ${flowText} Entry signals (${ltf}): ${reasons}. Entry ${entry.toFixed(2)}, SL ${stopLoss.toFixed(2)}, TP1 ${tp1.toFixed(2)}, TP2 ${tp2.toFixed(2)}, TP3 ${tp3.toFixed(2)}.`;
 }
 
 app.get("/smc/:rr", async (req, res) => {
   const { rr } = req.params;
   const pair = req.query.pair || "XAU/USD";
   const selectedTF = req.query.tf || "15m";
-
   const tfMap = {
     "5m":  { htf: "5m",  ltf: "5m" },
     "15m": { htf: "15m", ltf: "5m" },
@@ -431,7 +661,6 @@ app.get("/smc/:rr", async (req, res) => {
     "1H":  { htf: "1H",  ltf: "15m" },
     "4H":  { htf: "4H",  ltf: "1H" },
   };
-
   const { htf, ltf } = tfMap[selectedTF] || tfMap["15m"];
 
   try {
@@ -439,6 +668,7 @@ app.get("/smc/:rr", async (req, res) => {
     const ltfCandles = await fetchCandles(pair, ltf, 100);
     if (!htfCandles || !ltfCandles) return res.json({ error: "Could not fetch data. Try again in a few minutes." });
 
+    // HTF Analysis
     const dominantTrend = detectDominantTrend(htfCandles);
     const bos = detectBOS(htfCandles);
     const choch = detectCHOCH(htfCandles);
@@ -448,15 +678,25 @@ app.get("/smc/:rr", async (req, res) => {
     const emaRibbon = calcEMARibbon(htfCandles);
     const htfSD = detectSupplyDemand(htfCandles);
     const htfEHL = detectEqualHighsLows(htfCandles);
-    const htfRange = detectPremiumDiscount(htfCandles);
+    const htfRange = detectRange(htfCandles);
     const marketState = detectMarketState(htfCandles);
     const structureLabels = detectStructureLabels(htfCandles);
 
+    // Chart Pattern Detection
+    const chartPattern = detectChartPattern(htfCandles);
+
+    // Trend Exhaustion
+    const exhaustion = detectTrendExhaustion(htfCandles);
+
     const structureBias = htfBias || (dominantTrend === "Bullish" ? "Bullish Trend" : dominantTrend === "Bearish" ? "Bearish Trend" : null);
-    if (!structureBias) return res.json({ message: `No clear bias on ${htf}. Market state: ${marketState}. Wait for structure.` });
+    if (!structureBias) return res.json({ message: `No clear bias on ${htf}. Market: ${marketState}. Wait for structure.` });
 
     const biasDirection = structureBias.includes("Bullish") ? "BUY" : "SELL";
 
+    // Exhaustion warning — still show signal but warn
+    if (exhaustion) console.log(`⚠️ Trend exhaustion detected on ${htf} for ${pair}`);
+
+    // Dominant trend conflict
     if (dominantTrend && dominantTrend !== "Neutral") {
       const trendDirection = dominantTrend === "Bullish" ? "BUY" : "SELL";
       if (trendDirection !== biasDirection && !mss) {
@@ -467,6 +707,7 @@ app.get("/smc/:rr", async (req, res) => {
     const emaFilter = emaRibbon ? (biasDirection === "BUY" ? emaRibbon.bullish : emaRibbon.bearish) : true;
     const rsiFilter = biasDirection === "BUY" ? htfRSI > 50 && htfRSI < 75 : htfRSI < 50 && htfRSI > 25;
 
+    // LTF Analysis
     const ltfRSI = calcRSI(ltfCandles);
     const ltfATR = calcATR(ltfCandles);
     const ob = detectOrderBlock(ltfCandles);
@@ -478,11 +719,13 @@ app.get("/smc/:rr", async (req, res) => {
     const breaker = detectBreakerBlock(ltfCandles);
     const sss = detectSSS(ltfCandles);
     const trendlineSweep = detectTrendlineLiquiditySweep(ltfCandles);
+    const wickCluster = detectWickClusters(ltfCandles);
     const orderflow = calcOrderflow(ltfCandles);
 
-    const allSignals = [ob, sweep, engulfing, wick, fvg, idm, breaker, sss, trendlineSweep].filter(Boolean);
+    const allSignals = [ob, sweep, engulfing, wick, fvg, idm, breaker, sss, trendlineSweep, wickCluster].filter(Boolean);
     const matchingSignals = allSignals.filter(s => s.direction === biasDirection);
 
+    // Zone filter
     const zoneConflict = htfRange && (
       (biasDirection === "BUY" && parseFloat(htfRange.pct) > 70) ||
       (biasDirection === "SELL" && parseFloat(htfRange.pct) < 30)
@@ -492,6 +735,9 @@ app.get("/smc/:rr", async (req, res) => {
     if (mss) extraContext.push(mss);
     if (dominantTrend && dominantTrend !== "Neutral") extraContext.push(`Dominant: ${dominantTrend}`);
     if (marketState) extraContext.push(`State: ${marketState}`);
+    if (chartPattern) extraContext.push(`Pattern: ${chartPattern.type}`);
+    if (exhaustion) extraContext.push("⚠️ Exhaustion");
+    if (wickCluster && wickCluster.direction === biasDirection) extraContext.push(wickCluster.type);
     if (structureLabels?.lastStructure) extraContext.push(`Structure: ${structureLabels.lastStructure}`);
     if (htfSD?.demandZone && biasDirection === "BUY") extraContext.push(`${htf} Demand Zone`);
     if (htfSD?.supplyZone && biasDirection === "SELL") extraContext.push(`${htf} Supply Zone`);
@@ -507,78 +753,39 @@ app.get("/smc/:rr", async (req, res) => {
     }
 
     if (matchingSignals.length === 0) {
-      // Calculate limit order coordinates
+      // Limit orders
       const lastCandle = ltfCandles[ltfCandles.length - 1];
       const currentPrice = lastCandle.close;
-      const ltfATRVal = calcATR(ltfCandles);
       const { swingHighs, swingLows } = detectSwings(ltfCandles, 3);
       const ltfSD = detectSupplyDemand(ltfCandles);
       const ltfFVG = detectFVGWith50(ltfCandles);
       const ltfEHL = detectEqualHighsLows(ltfCandles);
 
-      // BUY LIMIT — nearest demand zone or swing low
-      let buyLimit = null;
-      let buyLimitSource = null;
-      if (ltfSD?.demandZone) {
-        buyLimit = ltfSD.demandZone.high;
-        buyLimitSource = "Demand Zone";
-      } else if (swingLows.length > 0) {
-        buyLimit = swingLows[swingLows.length - 1].price + (ltfATRVal * 0.2);
-        buyLimitSource = "Swing Low";
-      }
-      if (ltfFVG?.direction === "BUY") {
-        buyLimit = ltfFVG.mid;
-        buyLimitSource = "FVG 50%";
-      }
-      if (ltfEHL?.equalLows) {
-        buyLimit = ltfEHL.equalLows.level + (ltfATRVal * 0.1);
-        buyLimitSource = "Equal Lows";
-      }
+      let buyLimit = null, buyLimitSource = null;
+      let sellLimit = null, sellLimitSource = null;
 
-      // SELL LIMIT — nearest supply zone or swing high
-      let sellLimit = null;
-      let sellLimitSource = null;
-      if (ltfSD?.supplyZone) {
-        sellLimit = ltfSD.supplyZone.low;
-        sellLimitSource = "Supply Zone";
-      } else if (swingHighs.length > 0) {
-        sellLimit = swingHighs[swingHighs.length - 1].price - (ltfATRVal * 0.2);
-        sellLimitSource = "Swing High";
-      }
-      if (ltfFVG?.direction === "SELL") {
-        sellLimit = ltfFVG.mid;
-        sellLimitSource = "FVG 50%";
-      }
-      if (ltfEHL?.equalHighs) {
-        sellLimit = ltfEHL.equalHighs.level - (ltfATRVal * 0.1);
-        sellLimitSource = "Equal Highs";
-      }
+      if (ltfSD?.demandZone) { buyLimit = ltfSD.demandZone.high; buyLimitSource = "Demand Zone"; }
+      else if (swingLows.length > 0) { buyLimit = swingLows[swingLows.length - 1].price + ltfATR * 0.2; buyLimitSource = "Swing Low"; }
+      if (ltfFVG?.direction === "BUY") { buyLimit = ltfFVG.mid; buyLimitSource = "FVG 50%"; }
+      if (ltfEHL?.equalLows) { buyLimit = ltfEHL.equalLows.level + ltfATR * 0.1; buyLimitSource = "Equal Lows"; }
 
-      // Calculate SL and TP for each limit
-      const buySL = buyLimit ? buyLimit - (ltfATRVal * 1.5) : null;
-      const buyTP = buyLimit && buySL ? calcTP(buyLimit, buySL, rr, "BUY") : null;
-      const sellSL = sellLimit ? sellLimit + (ltfATRVal * 1.5) : null;
-      const sellTP = sellLimit && sellSL ? calcTP(sellLimit, sellSL, rr, "SELL") : null;
+      if (ltfSD?.supplyZone) { sellLimit = ltfSD.supplyZone.low; sellLimitSource = "Supply Zone"; }
+      else if (swingHighs.length > 0) { sellLimit = swingHighs[swingHighs.length - 1].price - ltfATR * 0.2; sellLimitSource = "Swing High"; }
+      if (ltfFVG?.direction === "SELL") { sellLimit = ltfFVG.mid; sellLimitSource = "FVG 50%"; }
+      if (ltfEHL?.equalHighs) { sellLimit = ltfEHL.equalHighs.level - ltfATR * 0.1; sellLimitSource = "Equal Highs"; }
+
+      const buySL = buyLimit ? buyLimit - ltfATR * 1.5 : null;
+      const buyTPs = buyLimit && buySL ? calcThreeTPs(buyLimit, buySL, "BUY") : null;
+      const sellSL = sellLimit ? sellLimit + ltfATR * 1.5 : null;
+      const sellTPs = sellLimit && sellSL ? calcThreeTPs(sellLimit, sellSL, "SELL") : null;
 
       return res.json({
-        message: `${pair} ${htf} bias: ${biasDirection} (${structureBias}). Market: ${marketState}. RSI: ${htfRSI.toFixed(1)}. ${htfRange ? `Price in ${htfRange.position} (${htfRange.pct}%).` : ""} Waiting for ${ltf} entry...`,
+        message: `${pair} ${htf} bias: ${biasDirection} (${structureBias}). Market: ${marketState}. ${chartPattern ? `Pattern: ${chartPattern.type}.` : ""} ${exhaustion ? "⚠️ Exhaustion." : ""} Waiting for ${ltf} entry...`,
         limitOrders: {
           currentPrice: currentPrice.toFixed(2),
           bias: biasDirection,
-          buyLimit: buyLimit ? {
-            price: buyLimit.toFixed(2),
-            source: buyLimitSource,
-            sl: buySL ? buySL.toFixed(2) : null,
-            tp: buyTP ? buyTP.toFixed(2) : null,
-            rr,
-          } : null,
-          sellLimit: sellLimit ? {
-            price: sellLimit.toFixed(2),
-            source: sellLimitSource,
-            sl: sellSL ? sellSL.toFixed(2) : null,
-            tp: sellTP ? sellTP.toFixed(2) : null,
-            rr,
-          } : null,
+          buyLimit: buyLimit ? { price: buyLimit.toFixed(2), source: buyLimitSource, sl: buySL?.toFixed(2), tp1: buyTPs?.tp1.toFixed(2), tp2: buyTPs?.tp2.toFixed(2), tp3: buyTPs?.tp3.toFixed(2), rr } : null,
+          sellLimit: sellLimit ? { price: sellLimit.toFixed(2), source: sellLimitSource, sl: sellSL?.toFixed(2), tp1: sellTPs?.tp1.toFixed(2), tp2: sellTPs?.tp2.toFixed(2), tp3: sellTPs?.tp3.toFixed(2), rr } : null,
         }
       });
     }
@@ -587,18 +794,15 @@ app.get("/smc/:rr", async (req, res) => {
     const entry = last.close;
 
     let stopLoss;
-    if (ob && ob.direction === biasDirection) {
-      stopLoss = biasDirection === "BUY" ? ob.low - (ltfATR * 0.5) : ob.high + (ltfATR * 0.5);
-    } else if (breaker && breaker.direction === biasDirection) {
-      stopLoss = biasDirection === "BUY" ? breaker.low - (ltfATR * 0.3) : breaker.high + (ltfATR * 0.3);
-    } else {
-      const swing = biasDirection === "BUY"
-        ? Math.min(...ltfCandles.slice(-5).map(c => c.low)) - (ltfATR * 0.5)
-        : Math.max(...ltfCandles.slice(-5).map(c => c.high)) + (ltfATR * 0.5);
+    if (ob && ob.direction === biasDirection) stopLoss = biasDirection === "BUY" ? ob.low - ltfATR * 0.5 : ob.high + ltfATR * 0.5;
+    else if (breaker && breaker.direction === biasDirection) stopLoss = biasDirection === "BUY" ? breaker.low - ltfATR * 0.3 : breaker.high + ltfATR * 0.3;
+    else {
+      const swing = biasDirection === "BUY" ? Math.min(...ltfCandles.slice(-5).map(c => c.low)) - ltfATR * 0.5 : Math.max(...ltfCandles.slice(-5).map(c => c.high)) + ltfATR * 0.5;
       stopLoss = swing;
     }
 
-    const takeProfit = calcTP(entry, stopLoss, rr, biasDirection);
+    const tps = calcThreeTPs(entry, stopLoss, biasDirection);
+    const trailingStop = calcTrailingStop(ltfCandles, biasDirection, ltfATR);
 
     let confidence = 50;
     if (matchingSignals.length >= 2) confidence += 10;
@@ -615,19 +819,26 @@ app.get("/smc/:rr", async (req, res) => {
     if (marketState === "BREAKOUT") confidence += 8;
     if (marketState === "TREND") confidence += 5;
     if (emaRibbon?.aligned) confidence += 7;
+    if (chartPattern && chartPattern.direction === biasDirection) confidence += 10;
+    if (wickCluster && wickCluster.direction === biasDirection) confidence += 8;
+    if (exhaustion) confidence -= 10; // reduce confidence if exhaustion
     if (htfRange && ((biasDirection === "BUY" && parseFloat(htfRange.pct) < 50) || (biasDirection === "SELL" && parseFloat(htfRange.pct) > 50))) confidence += 7;
     if (biasDirection === "BUY" && ltfRSI > 50) confidence += 5;
     if (biasDirection === "SELL" && ltfRSI < 50) confidence += 5;
-    confidence = Math.min(95, confidence);
+    confidence = Math.min(95, Math.max(30, confidence));
 
     const reasons = matchingSignals.map(s => s.type).join(", ");
-    const analysis = buildAnalysis(structureBias, dominantTrend, matchingSignals, biasDirection, htfRSI, ltfRSI, emaRibbon, entry, stopLoss, takeProfit, rr, pair, extraContext, orderflow, htf, ltf, htfRange, marketState, structureLabels);
+    const analysis = buildAnalysis(structureBias, dominantTrend, matchingSignals, biasDirection, htfRSI, ltfRSI, emaRibbon, entry, stopLoss, tps.tp1, tps.tp2, tps.tp3, rr, pair, extraContext, orderflow, htf, ltf, htfRange, marketState, structureLabels, chartPattern, exhaustion, wickCluster);
 
     const signal = {
       pair, direction: biasDirection,
       entry: entry.toFixed(2),
-      takeProfit: takeProfit.toFixed(2),
+      takeProfit: tps.tp1.toFixed(2),
+      tp1: tps.tp1.toFixed(2),
+      tp2: tps.tp2.toFixed(2),
+      tp3: tps.tp3.toFixed(2),
       stopLoss: stopLoss.toFixed(2),
+      trailingStop: trailingStop.toFixed(2),
       rr, confidence,
       pattern: matchingSignals[0].type,
       trend: structureBias, dominantTrend, reasons,
@@ -642,6 +853,10 @@ app.get("/smc/:rr", async (req, res) => {
       emaConfirmed: emaFilter,
       marketState,
       structureLabels: structureLabels?.lastStructure || null,
+      chartPattern: chartPattern ? chartPattern.type : null,
+      chartPatternDirection: chartPattern ? chartPattern.direction : null,
+      exhaustion,
+      wickCluster: wickCluster ? wickCluster.type : null,
       mss: mss || null,
       idm: idm ? idm.type : null,
       breaker: breaker ? breaker.type : null,
@@ -678,6 +893,8 @@ app.get("/mtf/:pair", async (req, res) => {
       const rsi = calcRSI(candles);
       const emaRibbon = calcEMARibbon(candles);
       const marketState = detectMarketState(candles);
+      const chartPattern = detectChartPattern(candles);
+      const exhaustion = detectTrendExhaustion(candles);
       const bias = mss || bos || choch || (dominantTrend !== "Neutral" ? `${dominantTrend} Trend` : null);
       if (!bias) { results.push({ tf, direction: "NEUTRAL", confidence: 50, rsi: rsi.toFixed(1), marketState }); continue; }
       const direction = bias.includes("Bullish") ? "BUY" : "SELL";
@@ -688,8 +905,10 @@ app.get("/mtf/:pair", async (req, res) => {
       if (direction === "SELL" && rsi < 50) confidence += 15;
       if (mss) confidence += 10;
       if (marketState === "BREAKOUT") confidence += 8;
-      confidence = Math.min(95, confidence);
-      results.push({ tf, direction, confidence, bias, rsi: rsi.toFixed(1), marketState });
+      if (chartPattern && chartPattern.direction === direction) confidence += 10;
+      if (exhaustion) confidence -= 10;
+      confidence = Math.min(95, Math.max(30, confidence));
+      results.push({ tf, direction, confidence, bias, rsi: rsi.toFixed(1), marketState, chartPattern: chartPattern?.type || null, exhaustion });
     }
     const buys = results.filter(r => r.direction === "BUY").length;
     const sells = results.filter(r => r.direction === "SELL").length;
@@ -737,8 +956,7 @@ app.get("/candles", async (req, res) => {
   if (cached) return res.json({ candles: cached });
   try {
     const fetch = (await import("node-fetch")).default;
-    const intervalMap = { "5min": "5min", "15min": "15min", "30min": "30min", "1h": "1h", "4h": "4h" };
-    const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(pair)}&interval=${intervalMap[interval] || "15min"}&outputsize=100&apikey=${TWELVE_KEY}`;
+    const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(pair)}&interval=${interval}&outputsize=100&apikey=${TWELVE_KEY}`;
     const r = await fetch(url);
     const data = await r.json();
     if (data.status === "error" || !data.values) return res.json({ candles: [] });
