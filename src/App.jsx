@@ -163,6 +163,12 @@ export default function App() {
         .ticker-track{display:flex;width:max-content;animation:ticker 50s linear infinite}
         .ticker-track:hover{animation-play-state:paused}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+        h1,h2,h3,h4,h5,h6,p,span,label,input,button,div{color:inherit}
+        .tools-card{background:rgba(17,17,24,0.85);border-radius:14px;border:1px solid rgba(255,255,255,0.08);overflow:hidden}
+        .tools-card h2,.tools-card h3,.tools-card p.title{color:#9ca3af !important;font-size:11px;text-transform:uppercase;letter-spacing:1px}
+        .tools-card hr,.tools-card .separator{border-color:rgba(255,255,255,0.06) !important}
+        input[type="number"],input[type="text"],select{background:rgba(255,255,255,0.06) !important;border:1px solid rgba(255,255,255,0.1) !important;color:#e5e7eb !important;border-radius:8px;padding:8px 10px;font-size:12px;width:100%}
+        .tools-card table td, .tools-card table th{border-color:rgba(255,255,255,0.06) !important;color:#9ca3af}
       `}</style>
 
       <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
