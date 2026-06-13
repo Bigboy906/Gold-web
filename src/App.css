@@ -1,78 +1,11 @@
-import { useState, useEffect } from "react";
-
-function App() {
-  const [signal, setSignal] = useState(null);
-
-  const mockSignal = {
-    pair: "XAU/USD",
-    direction: "BUY",
-    entry: 2345.50,
-    takeProfit: 2378.00,
-    stopLoss: 2328.00,
-    rr: "1:2.2",
-    confidence: 73,
-    indicators: {
-      trend: "Bullish",
-      rsi: 56.6,
-      adx: 25.5,
-      vwap: "Below",
-      pattern: "Bull Engulf",
-    },
-    analysis: "XAUUSD is in a bullish uptrend with strong momentum. RSI confirms strength. Bull Engulf pattern detected. Look for longs near entry.",
-  };
-
-  useEffect(() => {
-    setSignal(mockSignal);
-  }, []);
-
-  return (
-    <div style={{ background: "#0d0d0d", minHeight: "100vh", color: "white", fontFamily: "sans-serif", padding: "20px", maxWidth: "480px", margin: "0 auto" }}>
-      <h1 style={{ color: "#f0b90b", textAlign: "center" }}>XAUUSD Signal</h1>
-
-      {signal ? (
-        <div style={{ background: "#1a1a1a", borderRadius: "12px", padding: "20px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
-            <span style={{ fontSize: "20px", fontWeight: "bold" }}>{signal.pair}</span>
-            <span style={{ background: signal.direction === "BUY" ? "#00c853" : "#ff1744", padding: "4px 12px", borderRadius: "6px", fontWeight: "bold" }}>
-              {signal.direction}
-            </span>
-          </div>
-
-          <div style={{ background: "#111", borderRadius: "8px", padding: "10px", marginBottom: "10px" }}>
-            <p>Confidence: <strong>{signal.confidence}%</strong></p>
-            <p>Pattern: <strong>{signal.indicators.pattern}</strong></p>
-            <p>Trend: <strong>{signal.indicators.trend}</strong></p>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "10px" }}>
-            <div style={{ background: "#111", padding: "10px", borderRadius: "8px", textAlign: "center" }}>
-              <p style={{ color: "#888", fontSize: "12px" }}>ENTRY</p>
-              <p style={{ color: "#f0b90b" }}>{signal.entry}</p>
-            </div>
-            <div style={{ background: "#111", padding: "10px", borderRadius: "8px", textAlign: "center" }}>
-              <p style={{ color: "#888", fontSize: "12px" }}>TARGET</p>
-              <p style={{ color: "#00c853" }}>{signal.takeProfit}</p>
-            </div>
-            <div style={{ background: "#111", padding: "10px", borderRadius: "8px", textAlign: "center" }}>
-              <p style={{ color: "#888", fontSize: "12px" }}>STOP</p>
-              <p style={{ color: "#ff1744" }}>{signal.stopLoss}</p>
-            </div>
-          </div>
-
-          <div style={{ background: "#111", borderRadius: "8px", padding: "10px", marginBottom: "10px" }}>
-            <p style={{ color: "#888", fontSize: "12px" }}>AI ANALYSIS</p>
-            <p style={{ fontSize: "14px" }}>{signal.analysis}</p>
-          </div>
-
-          <button style={{ width: "100%", background: "#f0b90b", color: "#000", border: "none", padding: "14px", borderRadius: "8px", fontWeight: "bold", fontSize: "16px", cursor: "pointer" }}>
-            ⚡ Copy This Trade
-          </button>
-        </div>
-      ) : (
-        <p style={{ textAlign: "center" }}>Waiting for signal...</p>
-      )}
-    </div>
-  );
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-export default App;
+body {
+  background: #0a0a0f;
+  color: white;
+  font-family: sans-serif;
+}
