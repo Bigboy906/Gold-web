@@ -1,5 +1,23 @@
 import { useState, useEffect } from "react";
 
+const card = {
+  background: "rgba(17,17,24,0.85)",
+  backdropFilter: "blur(12px)",
+  borderRadius: 14,
+  border: "1px solid rgba(255,255,255,0.08)",
+  overflow: "hidden",
+};
+
+const rowStyle = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  background: "rgba(255,255,255,0.04)",
+  borderRadius: 8,
+  padding: 8,
+  border: "1px solid rgba(255,255,255,0.07)",
+};
+
 export default function MultiTimeframe({ pair }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -14,41 +32,45 @@ export default function MultiTimeframe({ pair }) {
   }, [pair]);
 
   return (
-    <div className="bg-[#111118]/80 backdrop-blur-md rounded-2xl border border-white/15 overflow-hidden">
-      <div className="p-3 border-b border-white/10">
-        <p className="text-gray-300 text-xs uppercase tracking-wider font-semibold">📊 Multi-Timeframe Confluence</p>
+    <div style={card}>
+      <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <p style={{ color: "#9ca3af", fontSize: 11, textTransform: "uppercase", letterSpacing: 1, fontWeight: 600 }}>📊 Multi-Timeframe Confluence</p>
       </div>
-      <div className="p-3">
-        {loading && <p className="text-gray-500 text-xs">Analysing timeframes...</p>}
+      <div style={{ padding: 12 }}>
+        {loading && <p style={{ color: "#6b7280", fontSize: 12 }}>Analysing timeframes...</p>}
         {data && (
           <>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-gray-400 text-xs">Overall</span>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-400 text-xs">{data.confluenceScore} Confluence</span>
-                <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${
-                  data.overall === "BUY" ? "bg-green-500/20 text-green-400 border border-green-500/30" :
-                  data.overall === "SELL" ? "bg-red-500/20 text-red-400 border border-red-500/30" :
-                  "bg-gray-500/20 text-gray-400 border border-gray-500/30"
-                }`}>{data.overall}</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <span style={{ color: "#9ca3af", fontSize: 12 }}>Overall</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ color: "#9ca3af", fontSize: 12 }}>{data.confluenceScore} Confluence</span>
+                <span style={{
+                  padding: "3px 10px", borderRadius: 8, fontSize: 12, fontWeight: "bold",
+                  background: data.overall === "BUY" ? "rgba(34,197,94,0.12)" : data.overall === "SELL" ? "rgba(239,68,68,0.12)" : "rgba(107,114,128,0.12)",
+                  color: data.overall === "BUY" ? "#4ade80" : data.overall === "SELL" ? "#f87171" : "#9ca3af",
+                  border: data.overall === "BUY" ? "1px solid rgba(34,197,94,0.25)" : data.overall === "SELL" ? "1px solid rgba(239,68,68,0.25)" : "1px solid rgba(107,114,128,0.25)",
+                }}>{data.overall}</span>
               </div>
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {data.timeframes?.map((tf, i) => (
-                <div key={i} className="flex items-center justify-between bg-white/5 rounded-lg p-2 border border-white/10">
-                  <span className="text-gray-300 text-xs font-medium w-8">{tf.tf}</span>
-                  <div className="flex-1 mx-2">
-                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${tf.direction === "BUY" ? "bg-green-500" : tf.direction === "SELL" ? "bg-red-500" : "bg-gray-500"}`}
-                        style={{ width: `${tf.confidence}%` }} />
+                <div key={i} style={rowStyle}>
+                  <span style={{ color: "#d1d5db", fontSize: 12, fontWeight: 500, width: 32 }}>{tf.tf}</span>
+                  <div style={{ flex: 1, margin: "0 10px" }}>
+                    <div style={{ height: 6, background: "rgba(255,255,255,0.08)", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{
+                        height: "100%", borderRadius: 3,
+                        background: tf.direction === "BUY" ? "#22c55e" : tf.direction === "SELL" ? "#ef4444" : "#6b7280",
+                        width: `${tf.confidence}%`,
+                      }} />
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-gray-400 text-xs">{tf.confidence}%</span>
-                    <span className={`text-xs font-bold ${
-                      tf.direction === "BUY" ? "text-green-400" :
-                      tf.direction === "SELL" ? "text-red-400" : "text-gray-400"
-                    }`}>{tf.direction}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ color: "#9ca3af", fontSize: 12 }}>{tf.confidence}%</span>
+                    <span style={{
+                      fontSize: 12, fontWeight: "bold",
+                      color: tf.direction === "BUY" ? "#4ade80" : tf.direction === "SELL" ? "#f87171" : "#9ca3af",
+                    }}>{tf.direction}</span>
                   </div>
                 </div>
               ))}
@@ -59,3 +81,4 @@ export default function MultiTimeframe({ pair }) {
     </div>
   );
 }
+

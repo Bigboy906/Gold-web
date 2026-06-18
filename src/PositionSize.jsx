@@ -1,5 +1,20 @@
 import { useState } from "react";
 
+const card = {
+  background: "rgba(17,17,24,0.85)",
+  backdropFilter: "blur(12px)",
+  borderRadius: 14,
+  border: "1px solid rgba(255,255,255,0.08)",
+  overflow: "hidden",
+};
+
+const statBox = {
+  background: "rgba(255,255,255,0.04)",
+  borderRadius: 8,
+  padding: 10,
+  border: "1px solid rgba(255,255,255,0.07)",
+};
+
 export default function PositionSize({ signal }) {
   const [accountBalance, setAccountBalance] = useState("");
   const [riskPercent, setRiskPercent] = useState("1");
@@ -27,65 +42,75 @@ export default function PositionSize({ signal }) {
   };
 
   return (
-    <div className="bg-[#111118]/80 backdrop-blur-md rounded-2xl border border-white/15 overflow-hidden">
-      <div className="p-3 border-b border-white/10">
-        <p className="text-gray-300 text-xs uppercase tracking-wider font-semibold">💰 Position Size Calculator</p>
+    <div style={card}>
+      <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <p style={{ color: "#9ca3af", fontSize: 11, textTransform: "uppercase", letterSpacing: 1, fontWeight: 600 }}>💰 Position Size Calculator</p>
       </div>
 
-      <div className="p-3 flex flex-col gap-2">
+      <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
         <div>
-          <p className="text-gray-400 text-xs mb-1">Account Balance (USD)</p>
+          <p style={{ color: "#9ca3af", fontSize: 11, marginBottom: 6 }}>Account Balance (USD)</p>
           <input
             type="number"
             value={accountBalance}
             onChange={e => setAccountBalance(e.target.value)}
             placeholder="e.g. 1000"
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-white text-xs focus:outline-none focus:border-yellow-500/50"
+            style={{
+              width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 8, padding: "8px 10px", color: "#e5e7eb", fontSize: 12,
+              outline: "none", boxSizing: "border-box",
+            }}
           />
         </div>
 
         <div>
-          <p className="text-gray-400 text-xs mb-1">Risk %</p>
-          <div className="flex gap-1.5">
+          <p style={{ color: "#9ca3af", fontSize: 11, marginBottom: 6 }}>Risk %</p>
+          <div style={{ display: "flex", gap: 6 }}>
             {["0.5", "1", "1.5", "2"].map(r => (
               <button key={r} onClick={() => setRiskPercent(r)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  riskPercent === r
-                    ? "bg-yellow-500 text-black shadow-[0_0_10px_rgba(234,179,8,0.5)]"
-                    : "bg-white/10 text-gray-300 hover:bg-white/20 border border-white/10"
-                }`}>{r}%</button>
+                style={{
+                  flex: 1, padding: "7px 0", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  background: riskPercent === r ? "#f59e0b" : "rgba(255,255,255,0.06)",
+                  color: riskPercent === r ? "black" : "#d1d5db",
+                  border: riskPercent === r ? "none" : "1px solid rgba(255,255,255,0.1)",
+                  boxShadow: riskPercent === r ? "0 0 10px rgba(234,179,8,0.4)" : "none",
+                }}>{r}%</button>
             ))}
           </div>
         </div>
 
         {!signal && (
-          <p className="text-gray-500 text-xs">Run an analysis first to calculate position size.</p>
+          <p style={{ color: "#6b7280", fontSize: 12 }}>Run an analysis first to calculate position size.</p>
         )}
 
         {signal && (
           <button onClick={calculate}
-            className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-2 rounded-xl text-xs transition-all shadow-[0_0_15px_rgba(234,179,8,0.3)]">
+            style={{
+              width: "100%", background: "#f59e0b", color: "black", fontWeight: "bold",
+              padding: "10px 0", borderRadius: 10, fontSize: 13, cursor: "pointer", border: "none",
+              boxShadow: "0 0 15px rgba(234,179,8,0.3)",
+            }}>
             Calculate
           </button>
         )}
 
         {result && (
-          <div className="grid grid-cols-2 gap-2 mt-1">
-            <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-              <p className="text-gray-400 text-xs mb-0.5">Risk Amount</p>
-              <p className="text-red-400 font-bold text-xs">${result.riskAmount}</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div style={statBox}>
+              <p style={{ color: "#9ca3af", fontSize: 10, marginBottom: 3 }}>Risk Amount</p>
+              <p style={{ color: "#f87171", fontWeight: "bold", fontSize: 13 }}>${result.riskAmount}</p>
             </div>
-            <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-              <p className="text-gray-400 text-xs mb-0.5">Lot Size</p>
-              <p className="text-yellow-400 font-bold text-xs">{result.lotSize}</p>
+            <div style={statBox}>
+              <p style={{ color: "#9ca3af", fontSize: 10, marginBottom: 3 }}>Lot Size</p>
+              <p style={{ color: "#f59e0b", fontWeight: "bold", fontSize: 13 }}>{result.lotSize}</p>
             </div>
-            <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-              <p className="text-gray-400 text-xs mb-0.5">SL Distance</p>
-              <p className="text-white font-bold text-xs">{result.slPips} pts</p>
+            <div style={statBox}>
+              <p style={{ color: "#9ca3af", fontSize: 10, marginBottom: 3 }}>SL Distance</p>
+              <p style={{ color: "white", fontWeight: "bold", fontSize: 13 }}>{result.slPips} pts</p>
             </div>
-            <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-              <p className="text-gray-400 text-xs mb-0.5">Potential Profit</p>
-              <p className="text-green-400 font-bold text-xs">${result.potentialProfit}</p>
+            <div style={statBox}>
+              <p style={{ color: "#9ca3af", fontSize: 10, marginBottom: 3 }}>Potential Profit</p>
+              <p style={{ color: "#4ade80", fontWeight: "bold", fontSize: 13 }}>${result.potentialProfit}</p>
             </div>
           </div>
         )}
@@ -93,3 +118,4 @@ export default function PositionSize({ signal }) {
     </div>
   );
 }
+

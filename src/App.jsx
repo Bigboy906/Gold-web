@@ -155,7 +155,8 @@ export default function App() {
   const tabLabels = { signal: "Signal", chart: "Chart", tools: "Tools", market: "Market" };
 
   return (
-    <div style={{ background: "#0a0a0f", minHeight: "100vh", color: "white", fontFamily: "sans-serif", display: "flex", flexDirection: "column", position: "relative" }}>
+    <div style={{ background: "#0a0a0f", height: "100vh", color: "white", fontFamily: "sans-serif", display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
+Line 2 — inner positioned div (currently has minHeight: "100vh"):
       <CandlestickBackground />
 
       <style>{`
@@ -171,7 +172,7 @@ export default function App() {
         .tools-card table td, .tools-card table th{border-color:rgba(255,255,255,0.06) !important;color:#9ca3af}
       `}</style>
 
-      <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+      <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", height: "100%" }}>
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderBottom: "1px solid rgba(255,255,255,0.1)", background: "rgba(10,10,15,0.85)", backdropFilter: "blur(12px)", position: "sticky", top: 0, zIndex: 50 }}>

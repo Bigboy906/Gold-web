@@ -10,6 +10,24 @@ const HIGH_IMPACT_EVENTS = [
   { time: "08:30", day: 4, name: "USD Jobless Claims", impact: "MEDIUM" },
 ];
 
+const card = {
+  background: "rgba(17,17,24,0.85)",
+  backdropFilter: "blur(12px)",
+  borderRadius: 14,
+  border: "1px solid rgba(255,255,255,0.08)",
+  overflow: "hidden",
+};
+
+const rowStyle = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  background: "rgba(255,255,255,0.04)",
+  borderRadius: 8,
+  padding: 8,
+  border: "1px solid rgba(255,255,255,0.07)",
+};
+
 export default function NewsFilter() {
   const [events, setEvents] = useState([]);
   const [warning, setWarning] = useState(null);
@@ -24,7 +42,6 @@ export default function NewsFilter() {
     const todayEvents = HIGH_IMPACT_EVENTS.filter(e => e.day === currentDay);
     setEvents(todayEvents);
 
-    // Check if any event is within 30 minutes
     for (const event of todayEvents) {
       const [h, m] = event.time.split(":").map(Number);
       const eventTime = h + m / 60;
@@ -41,40 +58,41 @@ export default function NewsFilter() {
   }, []);
 
   return (
-    <div className="bg-[#111118]/80 backdrop-blur-md rounded-2xl border border-white/15 overflow-hidden">
-      <div className="p-3 border-b border-white/10">
-        <p className="text-gray-300 text-xs uppercase tracking-wider font-semibold">📰 News Filter</p>
+    <div style={card}>
+      <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <p style={{ color: "#9ca3af", fontSize: 11, textTransform: "uppercase", letterSpacing: 1, fontWeight: 600 }}>📰 News Filter</p>
       </div>
 
-      <div className="p-3 flex flex-col gap-2">
+      <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
         {warning && (
-          <div className="bg-red-500/15 border border-red-500/40 rounded-xl p-2">
-            <p className="text-red-300 text-xs font-semibold">{warning}</p>
+          <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 10, padding: 10 }}>
+            <p style={{ color: "#fca5a5", fontSize: 12, fontWeight: 600 }}>{warning}</p>
           </div>
         )}
 
         {events.length === 0 ? (
-          <p className="text-gray-500 text-xs">No high impact news today.</p>
+          <p style={{ color: "#6b7280", fontSize: 12 }}>No high impact news today.</p>
         ) : (
-          <div className="flex flex-col gap-1">
-            <p className="text-gray-400 text-xs mb-1">Today's Events (UTC):</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <p style={{ color: "#9ca3af", fontSize: 11, marginBottom: 2 }}>Today's Events (UTC):</p>
             {events.map((e, i) => (
-              <div key={i} className="flex items-center justify-between bg-white/5 rounded-lg p-2 border border-white/10">
-                <div className="flex items-center gap-2">
-                  <span className={`w-1.5 h-1.5 rounded-full ${e.impact === "HIGH" ? "bg-red-400" : "bg-yellow-400"}`}></span>
-                  <span className="text-white text-xs">{e.name}</span>
+              <div key={i} style={rowStyle}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: e.impact === "HIGH" ? "#f87171" : "#fbbf24", display: "inline-block" }}></span>
+                  <span style={{ color: "#e5e7eb", fontSize: 12 }}>{e.name}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium ${e.impact === "HIGH" ? "text-red-400" : "text-yellow-400"}`}>{e.impact}</span>
-                  <span className="text-gray-400 text-xs">{e.time} UTC</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: e.impact === "HIGH" ? "#f87171" : "#fbbf24" }}>{e.impact}</span>
+                  <span style={{ color: "#9ca3af", fontSize: 11 }}>{e.time} UTC</span>
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        <p className="text-gray-600 text-xs mt-1">Avoid trading 30 min before/after HIGH impact events.</p>
+        <p style={{ color: "#4b5563", fontSize: 11, marginTop: 2 }}>Avoid trading 30 min before/after HIGH impact events.</p>
       </div>
     </div>
   );
 }
+

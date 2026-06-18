@@ -1,5 +1,13 @@
 import { useState, useEffect } from "react";
 
+const card = {
+  background: "rgba(17,17,24,0.85)",
+  backdropFilter: "blur(12px)",
+  borderRadius: 14,
+  border: "1px solid rgba(255,255,255,0.08)",
+  overflow: "hidden",
+};
+
 export default function Sentiment({ pair }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -14,39 +22,40 @@ export default function Sentiment({ pair }) {
   }, [pair]);
 
   return (
-    <div className="bg-[#111118]/80 backdrop-blur-md rounded-2xl border border-white/15 overflow-hidden">
-      <div className="p-3 border-b border-white/10">
-        <p className="text-gray-300 text-xs uppercase tracking-wider font-semibold">📰 News Sentiment</p>
+    <div style={card}>
+      <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <p style={{ color: "#9ca3af", fontSize: 11, textTransform: "uppercase", letterSpacing: 1, fontWeight: 600 }}>📰 News Sentiment</p>
       </div>
-      <div className="p-3">
-        {loading && <p className="text-gray-500 text-xs">Analysing news...</p>}
+      <div style={{ padding: 12 }}>
+        {loading && <p style={{ color: "#6b7280", fontSize: 12 }}>Analysing news...</p>}
         {data && (
           <>
-            <div className="flex items-center justify-between mb-3">
-              <span className={`text-sm font-bold ${
-                data.sentiment === "Bullish" ? "text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,0.8)]" :
-                data.sentiment === "Bearish" ? "text-red-400 drop-shadow-[0_0_6px_rgba(248,113,113,0.8)]" :
-                "text-gray-400"
-              }`}>{data.sentiment}</span>
-              <span className="text-gray-400 text-xs">{data.sentimentScore}% confidence</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <span style={{
+                fontSize: 14, fontWeight: "bold",
+                color: data.sentiment === "Bullish" ? "#4ade80" : data.sentiment === "Bearish" ? "#f87171" : "#9ca3af",
+              }}>{data.sentiment}</span>
+              <span style={{ color: "#9ca3af", fontSize: 12 }}>{data.sentimentScore}% confidence</span>
             </div>
 
-            {/* Sentiment bar */}
-            <div className="flex h-2 rounded-full overflow-hidden mb-3">
-              <div className="bg-green-500 transition-all" style={{ width: `${data.bullScore / (data.bullScore + data.bearScore || 1) * 100}%` }} />
-              <div className="bg-red-500 transition-all" style={{ width: `${data.bearScore / (data.bullScore + data.bearScore || 1) * 100}%` }} />
+            <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 10 }}>
+              <div style={{ background: "#22c55e", width: `${data.bullScore / (data.bullScore + data.bearScore || 1) * 100}%`, transition: "width 0.3s" }} />
+              <div style={{ background: "#ef4444", width: `${data.bearScore / (data.bullScore + data.bearScore || 1) * 100}%`, transition: "width 0.3s" }} />
             </div>
 
-            <div className="flex justify-between text-xs mb-3">
-              <span className="text-green-400">🟢 Bullish signals: {data.bullScore}</span>
-              <span className="text-red-400">🔴 Bearish signals: {data.bearScore}</span>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 10 }}>
+              <span style={{ color: "#4ade80" }}>🟢 Bullish signals: {data.bullScore}</span>
+              <span style={{ color: "#f87171" }}>🔴 Bearish signals: {data.bearScore}</span>
             </div>
 
             {data.headlines?.length > 0 && (
-              <div className="flex flex-col gap-1">
-                <p className="text-gray-500 text-xs mb-1">Latest Headlines:</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <p style={{ color: "#6b7280", fontSize: 11, marginBottom: 2 }}>Latest Headlines:</p>
                 {data.headlines.map((h, i) => (
-                  <p key={i} className="text-gray-400 text-xs leading-relaxed border-l-2 border-white/10 pl-2">{h}</p>
+                  <p key={i} style={{
+                    color: "#9ca3af", fontSize: 12, lineHeight: 1.5,
+                    borderLeft: "2px solid rgba(255,255,255,0.08)", paddingLeft: 8,
+                  }}>{h}</p>
                 ))}
               </div>
             )}
@@ -56,3 +65,4 @@ export default function Sentiment({ pair }) {
     </div>
   );
 }
+

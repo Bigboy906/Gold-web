@@ -1,5 +1,20 @@
 import { useState, useEffect } from "react";
 
+const card = {
+  background: "rgba(17,17,24,0.85)",
+  backdropFilter: "blur(12px)",
+  borderRadius: 14,
+  border: "1px solid rgba(255,255,255,0.08)",
+  overflow: "hidden",
+};
+
+const rowStyle = {
+  background: "rgba(255,255,255,0.04)",
+  borderRadius: 8,
+  padding: 8,
+  border: "1px solid rgba(255,255,255,0.07)",
+};
+
 export default function SignalHistory() {
   const [history, setHistory] = useState([]);
 
@@ -22,9 +37,13 @@ export default function SignalHistory() {
 
   if (history.length === 0) {
     return (
-      <div className="bg-[#111118]/80 backdrop-blur-md rounded-2xl border border-white/15 p-3">
-        <p className="text-gray-300 text-xs uppercase tracking-wider font-semibold mb-2">📋 Signal History</p>
-        <p className="text-gray-500 text-xs">No signals yet. Run an analysis to start tracking.</p>
+      <div style={card}>
+        <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          <p style={{ color: "#9ca3af", fontSize: 11, textTransform: "uppercase", letterSpacing: 1, fontWeight: 600 }}>📋 Signal History</p>
+        </div>
+        <div style={{ padding: 14 }}>
+          <p style={{ color: "#6b7280", fontSize: 12 }}>No signals yet. Run an analysis to start tracking.</p>
+        </div>
       </div>
     );
   }
@@ -36,56 +55,55 @@ export default function SignalHistory() {
     : null;
 
   return (
-    <div className="bg-[#111118]/80 backdrop-blur-md rounded-2xl border border-white/15 overflow-hidden">
-      <div className="p-3 border-b border-white/10 flex items-center justify-between">
-        <p className="text-gray-300 text-xs uppercase tracking-wider font-semibold">📋 Signal History</p>
-        <div className="flex items-center gap-2">
+    <div style={card}>
+      <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <p style={{ color: "#9ca3af", fontSize: 11, textTransform: "uppercase", letterSpacing: 1, fontWeight: 600 }}>📋 Signal History</p>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {winRate !== null && (
-            <span className={`text-xs font-bold ${winRate >= 50 ? "text-green-400" : "text-red-400"}`}>
+            <span style={{ fontSize: 12, fontWeight: "bold", color: winRate >= 50 ? "#4ade80" : "#f87171" }}>
               WR: {winRate}%
             </span>
           )}
-          <button onClick={clearHistory} className="text-gray-500 text-xs hover:text-red-400 transition-colors">Clear</button>
+          <button onClick={clearHistory} style={{ color: "#6b7280", fontSize: 12, background: "none", border: "none", cursor: "pointer" }}>Clear</button>
         </div>
       </div>
 
-      <div className="flex flex-col gap-1 p-2 max-h-48 overflow-y-auto">
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: 10, maxHeight: 220, overflowY: "auto" }}>
         {history.slice().reverse().map((s, i) => (
-          <div key={i} className="bg-white/5 rounded-lg p-2 border border-white/10">
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-1.5">
-                <span className={`text-xs font-bold ${s.direction === "BUY" ? "text-green-400" : "text-red-400"}`}>
-                  {s.direction}
-                </span>
-                <span className="text-gray-400 text-xs">{s.pair}</span>
-                <span className="text-gray-500 text-xs">@ {s.entry}</span>
+          <div key={i} style={rowStyle}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: "bold", color: s.direction === "BUY" ? "#4ade80" : "#f87171" }}>{s.direction}</span>
+                <span style={{ color: "#9ca3af", fontSize: 12 }}>{s.pair}</span>
+                <span style={{ color: "#6b7280", fontSize: 11 }}>@ {s.entry}</span>
               </div>
-              <span className="text-gray-500 text-xs">{new Date(s.timestamp).toLocaleDateString()}</span>
+              <span style={{ color: "#6b7280", fontSize: 11 }}>{new Date(s.timestamp).toLocaleDateString()}</span>
             </div>
 
-            <div className="flex items-center gap-1.5">
-              <span className="text-gray-500 text-xs">TP: <span className="text-green-400">{s.takeProfit}</span></span>
-              <span className="text-gray-500 text-xs">SL: <span className="text-red-400">{s.stopLoss}</span></span>
-              <span className="text-gray-500 text-xs">RR: {s.rr}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ color: "#6b7280", fontSize: 11 }}>TP: <span style={{ color: "#4ade80" }}>{s.takeProfit}</span></span>
+              <span style={{ color: "#6b7280", fontSize: 11 }}>SL: <span style={{ color: "#f87171" }}>{s.stopLoss}</span></span>
+              <span style={{ color: "#6b7280", fontSize: 11 }}>RR: {s.rr}</span>
             </div>
 
             {!s.result ? (
-              <div className="flex gap-1 mt-1.5">
+              <div style={{ display: "flex", gap: 6 }}>
                 <button onClick={() => markResult(history.length - 1 - i, "win")}
-                  className="flex-1 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg py-1 text-xs font-medium hover:bg-green-500/30 transition-colors">
+                  style={{ flex: 1, background: "rgba(34,197,94,0.12)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.25)", borderRadius: 8, padding: "4px 0", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
                   ✓ Win
                 </button>
                 <button onClick={() => markResult(history.length - 1 - i, "loss")}
-                  className="flex-1 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg py-1 text-xs font-medium hover:bg-red-500/30 transition-colors">
+                  style={{ flex: 1, background: "rgba(239,68,68,0.12)", color: "#f87171", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 8, padding: "4px 0", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
                   ✗ Loss
                 </button>
               </div>
             ) : (
-              <div className={`mt-1.5 text-center py-1 rounded-lg text-xs font-bold ${
-                s.result === "win"
-                  ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                  : "bg-red-500/20 text-red-400 border border-red-500/30"
-              }`}>
+              <div style={{
+                textAlign: "center", padding: "4px 0", borderRadius: 8, fontSize: 11, fontWeight: "bold",
+                background: s.result === "win" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+                color: s.result === "win" ? "#4ade80" : "#f87171",
+                border: s.result === "win" ? "1px solid rgba(34,197,94,0.25)" : "1px solid rgba(239,68,68,0.25)",
+              }}>
                 {s.result === "win" ? "✓ WIN" : "✗ LOSS"}
               </div>
             )}
@@ -95,3 +113,4 @@ export default function SignalHistory() {
     </div>
   );
 }
+
